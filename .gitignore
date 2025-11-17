@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Data files
+data/
+*.parquet
+*.csv
+*.xlsx
+*.xls
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log

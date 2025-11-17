@@ -1,0 +1,74 @@
+from sqlalchemy import Column, String, Integer, DateTime, Enum as SQLEnum, ForeignKey, BigInteger
+from sqlalchemy.orm import relationship
+from datetime import datetime
+import uuid
+import enum
+from app.core.database import Base
+
+
+class SourceType(str, enum.Enum):
+    CSV = "CSV"
+    XLSX = "XLSX"
+    GOOGLE_SHEETS = "GOOGLE_SHEETS"
+
+
+class DatasetStatus(str, enum.Enum):
+    UPLOADING = "UPLOADING"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
+class Dataset(Base):
+    __tablename__ = "datasets"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+
+    # File paths
+    parquet_path = Column(String, nullable=False)
+    schema_path = Column(String, nullable=False)
+    embedding_path = Column(String, nullable=True)
+
+    # Source info
+    source_type = Column(SQLEnum(SourceType), nullable=False)
+    source_url = Column(String, nullable=True)
+
+    # Status
+    status = Column(SQLEnum(DatasetStatus), default=DatasetStatus.UPLOADING, nullable=False)
+
+    # Stats
+    row_count = Column(Integer, default=0)
+    size_bytes = Column(BigInteger, default=0)
+    dataset_version = Column(Integer, default=1)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    versions = relationship("DatasetVersion", back_populates="dataset")
+    queries = relationship("Query", back_populates="dataset")
+    code_executions = relationship("CodeExecution", back_populates="dataset")
+    ml_models = relationship("MLModel", back_populates="dataset")
+
+
+class DatasetVersion(Base):
+    __tablename__ = "dataset_versions"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id = Column(String, ForeignKey("datasets.id"), nullable=False)
+    version = Column(Integer, nullable=False)
+
+    # File paths
+    parquet_path = Column(String, nullable=False)
+    schema_path = Column(String, nullable=False)
+    checksum = Column(String, nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    dataset = relationship("Dataset", back_populates="versions")
