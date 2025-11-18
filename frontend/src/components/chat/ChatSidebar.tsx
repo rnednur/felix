@@ -248,6 +248,18 @@ export function ChatSidebar({
             🧠 Deep research: Multi-stage analysis with insights
           </div>
         )}
+        {input.startsWith('/') && (
+          <div className="text-xs bg-blue-50 text-blue-700 p-2 rounded border border-blue-200">
+            <div className="font-medium mb-1">Slash Commands:</div>
+            <div className="space-y-0.5">
+              <div><code>/metadata [instruction]</code> - Update column metadata with AI</div>
+              <div><code>/rule [instruction]</code> - Create query rules with AI</div>
+            </div>
+            <div className="mt-1 text-blue-600">
+              Examples: <code>/metadata mark email as PII</code> or <code>/rule only show active users</code>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

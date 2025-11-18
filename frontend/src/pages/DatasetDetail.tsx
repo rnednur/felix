@@ -127,6 +127,88 @@ export default function DatasetDetail() {
   }
 
   const handleQuerySubmit = async (query: string, mode: AnalysisMode = 'auto') => {
+    // Check for slash commands
+    if (query.startsWith('/metadata ')) {
+      const instruction = query.substring(10).trim()
+      setMessages((prev) => [...prev, { role: 'user', content: query }])
+
+      try {
+        setMessages((prev) => [...prev, {
+          role: 'assistant',
+          content: '🤖 Using AI to update column metadata...'
+        }])
+
+        const response = await fetch(`http://localhost:8000/api/v1/metadata/datasets/${id}/ai-update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instruction })
+        })
+
+        const result = await response.json()
+
+        if (!response.ok) throw new Error(result.detail || 'Failed to update metadata')
+
+        const updatesText = Object.entries(result.updates || {})
+          .map(([col, updates]: [string, any]) => {
+            const fields = Object.entries(updates)
+              .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+              .join(', ')
+            return `• **${col}**: ${fields}`
+          })
+          .join('\n')
+
+        setMessages((prev) => [...prev.slice(0, -1), {
+          role: 'assistant',
+          content: `✅ ${result.message}\n\n**Updates:**\n${updatesText}\n\n💡 The AI has analyzed your columns and applied the requested metadata updates. These will now help improve query accuracy.`
+        }])
+        return
+      } catch (error: any) {
+        setMessages((prev) => [...prev.slice(0, -1), {
+          role: 'assistant',
+          content: `❌ Failed to update metadata: ${error.message}`
+        }])
+        return
+      }
+    }
+
+    if (query.startsWith('/rule ')) {
+      const instruction = query.substring(6).trim()
+      setMessages((prev) => [...prev, { role: 'user', content: query }])
+
+      try {
+        setMessages((prev) => [...prev, {
+          role: 'assistant',
+          content: '🤖 Using AI to create query rules...'
+        }])
+
+        const response = await fetch(`http://localhost:8000/api/v1/metadata/datasets/${id}/ai-rules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instruction })
+        })
+
+        const result = await response.json()
+
+        if (!response.ok) throw new Error(result.detail || 'Failed to create rules')
+
+        const rulesText = (result.rules || [])
+          .map((rule: any) => `• **${rule.name}**: ${rule.description}\n  Type: ${rule.rule_type}, Condition: ${JSON.stringify(rule.condition)}`)
+          .join('\n\n')
+
+        setMessages((prev) => [...prev.slice(0, -1), {
+          role: 'assistant',
+          content: `✅ ${result.message}\n\n**Rules Created:**\n${rulesText}\n\n💡 These rules will be automatically applied to all future queries on this dataset.`
+        }])
+        return
+      } catch (error: any) {
+        setMessages((prev) => [...prev.slice(0, -1), {
+          role: 'assistant',
+          content: `❌ Failed to create rules: ${error.message}`
+        }])
+        return
+      }
+    }
+
     // Check for special commands
     if (query.toLowerCase().includes('describe') ||
         query.toLowerCase().includes('metadata') ||

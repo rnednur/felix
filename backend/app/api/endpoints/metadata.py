@@ -7,6 +7,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.models.dataset import Dataset
 from app.models.column_metadata import ColumnMetadata, QueryRule
+from app.services.ai_metadata_service import AIMetadataService
 
 router = APIRouter(prefix="/metadata", tags=["metadata"])
 
@@ -285,3 +286,105 @@ async def toggle_query_rule(
     db.refresh(rule)
 
     return rule
+
+
+# AI-Powered Metadata and Rules Endpoints
+
+class AIMetadataRequest(BaseModel):
+    instruction: str
+
+
+class AIMetadataResponse(BaseModel):
+    success: bool
+    message: str
+    updates: Optional[Dict[str, Any]] = None
+    rules: Optional[List[Dict[str, Any]]] = None
+    updated_columns: Optional[List[str]] = None
+    created_rules: Optional[List[str]] = None
+
+
+@router.post("/datasets/{dataset_id}/ai-update", response_model=AIMetadataResponse)
+async def ai_update_metadata(
+    dataset_id: str,
+    request: AIMetadataRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Use AI to update column metadata based on natural language instruction
+
+    Examples:
+    - "Mark email and phone columns as PII"
+    - "Set revenue and sales to use SUM aggregation"
+    - "Add business definitions for customer columns"
+    """
+    # Verify dataset exists
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.deleted_at.is_(None)
+    ).first()
+
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+
+    try:
+        service = AIMetadataService(db)
+
+        # Generate metadata updates
+        updates = await service.generate_metadata_updates(dataset_id, request.instruction)
+
+        # Apply updates
+        updated_columns = await service.apply_metadata_updates(dataset_id, updates)
+
+        return {
+            "success": True,
+            "message": f"Updated metadata for {len(updated_columns)} columns",
+            "updates": updates,
+            "updated_columns": updated_columns
+        }
+    except Exception as e:
+        print(f"AI metadata update error: {str(e)}")
+        raise HTTPException(500, f"Failed to update metadata: {str(e)}")
+
+
+@router.post("/datasets/{dataset_id}/ai-rules", response_model=AIMetadataResponse)
+async def ai_create_rules(
+    dataset_id: str,
+    request: AIMetadataRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Use AI to create query rules based on natural language instruction
+
+    Examples:
+    - "Only show active customers"
+    - "Filter out cancelled orders"
+    - "Always exclude SSN column"
+    - "Only show data from 2024"
+    """
+    # Verify dataset exists
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.deleted_at.is_(None)
+    ).first()
+
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+
+    try:
+        service = AIMetadataService(db)
+
+        # Generate rules
+        rules = await service.generate_query_rules(dataset_id, request.instruction)
+
+        # Apply rules
+        created_rules = await service.apply_query_rules(dataset_id, rules)
+
+        return {
+            "success": True,
+            "message": f"Created {len(created_rules)} query rules",
+            "rules": rules,
+            "created_rules": created_rules
+        }
+    except Exception as e:
+        print(f"AI rules creation error: {str(e)}")
+        raise HTTPException(500, f"Failed to create rules: {str(e)}")
