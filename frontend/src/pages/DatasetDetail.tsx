@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { useDataset, useDatasetPreview } from '@/hooks/useDatasets'
+import { useDataset, useDatasetPreview, useDatasetSchema } from '@/hooks/useDatasets'
 import { useNLQuery } from '@/hooks/useQuery'
 import { useVisualizationSuggestions } from '@/hooks/useVisualization'
 import { ChatSidebar, type AnalysisMode } from '@/components/chat/ChatSidebar'
@@ -27,6 +27,7 @@ export default function DatasetDetail() {
   const { id } = useParams<{ id: string }>()
   const { data: dataset } = useDataset(id!)
   const { data: preview } = useDatasetPreview(id!)
+  const { data: schema } = useDatasetSchema(id!)
   const [messages, setMessages] = useState<Message[]>([])
   const [currentView, setCurrentView] = useState<'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report'>('spreadsheet')
   const [queryResult, setQueryResult] = useState<any>(null)
@@ -479,10 +480,10 @@ export default function DatasetDetail() {
       )}
 
       {/* Dataset Settings Panel */}
-      {showSettingsPanel && dataset && preview && (
+      {showSettingsPanel && dataset && schema && (
         <DatasetSettingsPanel
           datasetId={id!}
-          columns={preview.columns.map(col => ({ name: col.name, dtype: col.dtype }))}
+          columns={schema.columns.map(col => ({ name: col.name, dtype: col.dtype }))}
           onClose={() => setShowSettingsPanel(false)}
         />
       )}
