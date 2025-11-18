@@ -30,7 +30,7 @@ async def execute_nl_query(
         raise HTTPException(404, "Dataset not found")
 
     # Generate SQL
-    nl_service = NLToSQLService()
+    nl_service = NLToSQLService(db)
     try:
         result = await nl_service.generate_sql(request.query, request.dataset_id)
     except Exception as e:

@@ -14,6 +14,7 @@ from app.models import (
     CodeExecution,
     MLModel
 )
+from app.models.column_metadata import ColumnMetadata, QueryRule
 
 app = FastAPI(
     title="AI Analytics Platform",

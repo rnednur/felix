@@ -1,17 +1,21 @@
 import json
 import httpx
 from typing import Dict, Any
+from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.services.storage_service import StorageService
 from app.services.embedding_service import EmbeddingService
+from app.services.rule_service import RuleService
 
 
 class NLToSQLService:
     """Convert natural language to SQL using LLM"""
 
-    def __init__(self):
+    def __init__(self, db: Session = None):
         self.storage_service = StorageService()
         self.embedding_service = EmbeddingService()
+        self.db = db
+        self.rule_service = RuleService(db) if db else None
 
     async def generate_sql(self, nl_query: str, dataset_id: str) -> Dict[str, Any]:
         """Generate SQL from natural language query"""
@@ -24,8 +28,8 @@ class NLToSQLService:
             nl_query, embedding_path, schema, top_k=10
         )
 
-        # Build prompt
-        prompt = self.build_prompt(nl_query, schema, relevant_cols)
+        # Build prompt (includes metadata and rules context)
+        prompt = self.build_prompt(nl_query, schema, relevant_cols, dataset_id)
 
         # Call OpenRouter
         sql = await self.call_openrouter(prompt)
@@ -33,13 +37,17 @@ class NLToSQLService:
         # Validate and add guardrails
         validated_sql = self.apply_guardrails(sql)
 
+        # Apply query rules (filters, exclusions, etc.)
+        if self.rule_service:
+            validated_sql = self.rule_service.apply_rules_to_sql(validated_sql, dataset_id)
+
         return {
             'sql': validated_sql,
             'retrieved_columns': [col['column']['name'] for col in relevant_cols],
             'confidence': self.estimate_confidence(relevant_cols)
         }
 
-    def build_prompt(self, nl_query: str, schema: dict, relevant_cols: list) -> str:
+    def build_prompt(self, nl_query: str, schema: dict, relevant_cols: list, dataset_id: str = None) -> str:
         """Build prompt for LLM"""
         # Format relevant columns
         cols_info = []
@@ -76,6 +84,11 @@ The following columns contain dates in format "MM/DD/YYYY HH:MM:SS AM/PM": {', '
 Example: SELECT MIN(strptime("Date Rptd", '%m/%d/%Y %I:%M:%S %p')) as min_date FROM dataset
 """
 
+        # Get metadata and rules context
+        rules_context = ""
+        if self.rule_service and dataset_id:
+            rules_context = self.rule_service.get_rules_context_for_llm(dataset_id)
+
         return f"""You are a SQL expert. Generate a DuckDB SQL query for the following request.
 
 Dataset Schema (most relevant columns):
@@ -85,6 +98,7 @@ All available columns:
 {', '.join([f'"{c["name"]}"' for c in schema['columns']])}
 
 {date_instructions}
+{rules_context}
 
 User Request: {nl_query}
 

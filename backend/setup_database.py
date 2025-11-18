@@ -14,6 +14,7 @@ from app.models import (
     SemanticMetric,
     AuditLog,
 )
+from app.models.column_metadata import ColumnMetadata, QueryRule
 
 
 def create_database():

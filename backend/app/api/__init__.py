@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import datasets, queries, visualizations, analysis, python_analysis, deep_research
+from app.api.endpoints import datasets, queries, visualizations, analysis, python_analysis, deep_research, metadata
 
 api_router = APIRouter()
 
@@ -9,3 +9,4 @@ api_router.include_router(visualizations.router)
 api_router.include_router(analysis.router)
 api_router.include_router(python_analysis.router)
 api_router.include_router(deep_research.router, prefix="/deep-research", tags=["deep-research"])
+api_router.include_router(metadata.router)

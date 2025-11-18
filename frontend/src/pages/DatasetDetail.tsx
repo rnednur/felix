@@ -10,6 +10,7 @@ import { SchemaView } from '@/components/canvas/SchemaView'
 import { ReportView } from '@/components/canvas/ReportView'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
+import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText } from 'lucide-react'
@@ -37,6 +38,7 @@ export default function DatasetDetail() {
   const [deepResearchReport, setDeepResearchReport] = useState<any>(null)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [overviewData, setOverviewData] = useState<any>(null)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false)
   const [lastExecution, setLastExecution] = useState<{
     code: string
     result: ExecutionResult | null
@@ -476,6 +478,15 @@ export default function DatasetDetail() {
         />
       )}
 
+      {/* Dataset Settings Panel */}
+      {showSettingsPanel && dataset && preview && (
+        <DatasetSettingsPanel
+          datasetId={id!}
+          columns={preview.columns.map(col => ({ name: col.name, dtype: col.dtype }))}
+          onClose={() => setShowSettingsPanel(false)}
+        />
+      )}
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Bar */}
@@ -506,7 +517,10 @@ export default function DatasetDetail() {
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Dataset
               </Button>
-              <Button variant="outline">
+              <Button
+                variant="outline"
+                onClick={() => setShowSettingsPanel(true)}
+              >
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
               </Button>
