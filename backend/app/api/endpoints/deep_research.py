@@ -1,14 +1,16 @@
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from app.core.database import get_db
 from app.services.deep_research_service import DeepResearchService
+from app.services.infographic_service import InfographicService
 from app.models.dataset import Dataset
 import logging
 import json
 import asyncio
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,9 @@ class DeepResearchRequest(BaseModel):
     max_sub_questions: int = Field(default=10, ge=1, le=20, description="Maximum sub-questions to generate")
     enable_python: bool = Field(default=True, description="Enable Python analysis")
     enable_world_knowledge: bool = Field(default=True, description="Enable world knowledge enrichment")
+    generate_infographic: bool = Field(default=False, description="Auto-generate infographic")
+    infographic_format: str = Field(default='pdf', description="Infographic format if auto-generating")
+    infographic_color_scheme: str = Field(default='professional', description="Color scheme if auto-generating")
 
 
 class DeepResearchResponse(BaseModel):
@@ -30,12 +35,31 @@ class DeepResearchResponse(BaseModel):
     main_question: str
     direct_answer: str
     key_findings: List[str]
-    supporting_details: Dict[str, Any]
+    supporting_details: List[Dict[str, Any]]  # Changed from Dict to List
     data_coverage: Dict[str, Any]
     follow_up_questions: List[str]
     visualizations: List[Dict[str, Any]]
-    stages_completed: List[str]
+    stages_completed: List[str]  # List of stage names
     execution_time_seconds: float
+    error: Optional[str] = None
+    infographic: Optional[Dict[str, Any]] = None  # Added: optional infographic data
+
+
+class InfographicRequest(BaseModel):
+    """Request for infographic generation"""
+    format: str = Field(default='pdf', description="Output format: 'pdf' or 'png'")
+    color_scheme: str = Field(default='professional', description="Color scheme: 'professional', 'modern', or 'corporate'")
+    include_charts: bool = Field(default=True, description="Include summary charts")
+    include_visualizations: bool = Field(default=True, description="Include data visualizations")
+
+
+class InfographicResponse(BaseModel):
+    """Response from infographic generation"""
+    success: bool
+    data: str = Field(..., description="Base64 encoded infographic")
+    format: str
+    filename: str
+    size_bytes: int
     error: Optional[str] = None
 
 
@@ -77,6 +101,29 @@ async def deep_research_analyze(
 
         logger.info(f"Deep research completed in {result.get('execution_time_seconds', 0):.2f}s")
 
+        # Optionally generate infographic
+        infographic_data = None
+        if request.generate_infographic:
+            try:
+                logger.info("Auto-generating infographic...")
+                infographic_service = InfographicService(template=request.infographic_color_scheme)
+                infographic_result = infographic_service.generate_infographic(
+                    research_result=result,
+                    format=request.infographic_format,
+                    include_charts=True,
+                    include_visualizations=True
+                )
+                infographic_data = {
+                    'data': infographic_result['data'],
+                    'format': infographic_result['format'],
+                    'filename': infographic_result['filename'],
+                    'size_bytes': infographic_result['size_bytes']
+                }
+                logger.info(f"Infographic generated: {infographic_result['filename']}")
+            except Exception as e:
+                logger.error(f"Infographic generation failed: {str(e)}", exc_info=True)
+                # Continue without infographic - don't fail the whole request
+
         return DeepResearchResponse(
             success=True,
             main_question=result['main_question'],
@@ -87,7 +134,8 @@ async def deep_research_analyze(
             follow_up_questions=result['follow_up_questions'],
             visualizations=result.get('visualizations', []),
             stages_completed=result['stages_completed'],
-            execution_time_seconds=result['execution_time_seconds']
+            execution_time_seconds=result['execution_time_seconds'],
+            infographic=infographic_data
         )
 
     except HTTPException:
@@ -183,6 +231,134 @@ async def deep_research_analyze_stream(
             "Connection": "keep-alive",
         }
     )
+
+
+@router.post("/generate-infographic")
+async def generate_infographic(
+    research_result: Dict[str, Any],
+    infographic_request: InfographicRequest = InfographicRequest()
+):
+    """
+    Generate professional infographic from deep research results
+
+    This endpoint takes the output from /analyze and generates a visual infographic.
+    Supports PDF and PNG formats with multiple professional color schemes.
+
+    Args:
+        research_result: The complete output from /analyze endpoint
+        infographic_request: Infographic generation options
+
+    Returns:
+        Base64 encoded infographic (PDF or PNG)
+    """
+
+    try:
+        logger.info(f"Generating {infographic_request.format} infographic with {infographic_request.color_scheme} theme")
+
+        # Initialize infographic service
+        infographic_service = InfographicService(template=infographic_request.color_scheme)
+
+        # Generate infographic
+        result = infographic_service.generate_infographic(
+            research_result=research_result,
+            format=infographic_request.format,
+            include_charts=infographic_request.include_charts,
+            include_visualizations=infographic_request.include_visualizations
+        )
+
+        logger.info(f"Infographic generated successfully: {result['filename']} ({result['size_bytes']} bytes)")
+
+        return InfographicResponse(
+            success=True,
+            data=result['data'],
+            format=result['format'],
+            filename=result['filename'],
+            size_bytes=result['size_bytes']
+        )
+
+    except Exception as e:
+        logger.error(f"Infographic generation failed: {str(e)}", exc_info=True)
+        return InfographicResponse(
+            success=False,
+            data="",
+            format=infographic_request.format,
+            filename="",
+            size_bytes=0,
+            error=str(e)
+        )
+
+
+@router.post("/analyze-with-infographic", response_model=Dict[str, Any])
+async def analyze_with_infographic(
+    request: DeepResearchRequest,
+    infographic_request: InfographicRequest = InfographicRequest(),
+    db: Session = Depends(get_db)
+):
+    """
+    Convenience endpoint: Run deep research AND generate infographic in one call
+
+    This combines /analyze and /generate-infographic into a single request.
+
+    Returns both the research results and the generated infographic.
+    """
+
+    try:
+        # Step 1: Run deep research
+        logger.info(f"Running deep research for: {request.question}")
+
+        dataset = db.query(Dataset).filter(Dataset.id == request.dataset_id).first()
+        if not dataset:
+            raise HTTPException(status_code=404, detail=f"Dataset {request.dataset_id} not found")
+
+        service = DeepResearchService()
+        research_result = await service.research(
+            main_question=request.question,
+            dataset_id=request.dataset_id,
+            max_sub_questions=request.max_sub_questions,
+            enable_python=request.enable_python,
+            enable_world_knowledge=request.enable_world_knowledge
+        )
+
+        # Step 2: Generate infographic
+        logger.info("Generating infographic from research results")
+
+        infographic_service = InfographicService(template=infographic_request.color_scheme)
+        infographic_result = infographic_service.generate_infographic(
+            research_result=research_result,
+            format=infographic_request.format,
+            include_charts=infographic_request.include_charts,
+            include_visualizations=infographic_request.include_visualizations
+        )
+
+        logger.info(f"Analysis complete with infographic: {infographic_result['filename']}")
+
+        # Return combined response
+        return {
+            "success": True,
+            "research": {
+                "main_question": research_result['main_question'],
+                "direct_answer": research_result['direct_answer'],
+                "key_findings": research_result['key_findings'],
+                "supporting_details": research_result['supporting_details'],
+                "data_coverage": research_result['data_coverage'],
+                "follow_up_questions": research_result['follow_up_questions'],
+                "visualizations": research_result.get('visualizations', []),
+                "stages_completed": research_result['stages_completed'],
+                "execution_time_seconds": research_result['execution_time_seconds']
+            },
+            "infographic": {
+                "data": infographic_result['data'],
+                "format": infographic_result['format'],
+                "filename": infographic_result['filename'],
+                "size_bytes": infographic_result['size_bytes']
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Analysis with infographic failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")

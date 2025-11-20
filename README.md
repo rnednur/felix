@@ -8,10 +8,11 @@ Felix is an intelligent data analytics platform that transforms natural language
 - **Smart Query Modes** - Auto, SQL, Python, and Deep Research modes
 - **Machine Learning** - Build prediction models with simple commands
 - **Interactive Visualizations** - Automatic chart generation
+- **Professional Infographics** - Generate enterprise-grade PDF/PNG infographics from research
 - **Fast Analytics** - DuckDB query engine with Parquet storage
 - **Dataset Overview** - AI-powered insights about your data
 - **Code Generation** - See and customize generated SQL/Python code
-- **Report Export** - Download comprehensive PDF reports
+- **Report Export** - Download comprehensive PDF reports with visual infographics
 
 ## Architecture
 
@@ -103,6 +104,7 @@ For complete documentation, see the [docs](./docs/) directory:
 - [User Guide](./docs/user-guide.md) - How to use Felix
 - [Query Modes](./docs/query-modes.md) - Auto, SQL, Python, Deep Research
 - [Python Analysis](./docs/python-analysis.md) - ML and statistics
+- [Infographic Generation](./backend/INFOGRAPHIC_USAGE.md) - Professional PDF/PNG infographics
 - [API Reference](./docs/api-reference.md) - REST API documentation
 - [Architecture](./docs/architecture.md) - System design
 - [Troubleshooting](./docs/troubleshooting.md) - Common issues

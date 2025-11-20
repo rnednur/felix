@@ -46,6 +46,12 @@ export default function DatasetDetail() {
     mode: string
   } | null>(null)
 
+  // Infographic options
+  const [generateInfographic, setGenerateInfographic] = useState(false)
+  const [infographicFormat, setInfographicFormat] = useState<'pdf' | 'png'>('pdf')
+  const [infographicColorScheme, setInfographicColorScheme] = useState<'professional' | 'modern' | 'corporate'>('professional')
+  const [currentInfographic, setCurrentInfographic] = useState<any>(null)
+
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
 
@@ -244,127 +250,101 @@ export default function DatasetDetail() {
 
       try {
         const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
-        const eventSource = new EventSource(
-          `${apiUrl}/deep-research/analyze-stream?` + new URLSearchParams({
+
+        // Use regular POST endpoint (supports infographics)
+        const response = await fetch(`${apiUrl}/deep-research/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             dataset_id: id!,
             question: query,
-            max_sub_questions: '10',
-            enable_python: 'true',
-            enable_world_knowledge: 'true'
+            max_sub_questions: 10,
+            enable_python: true,
+            enable_world_knowledge: true,
+            generate_infographic: generateInfographic,
+            infographic_format: infographicFormat,
+            infographic_color_scheme: infographicColorScheme
           })
-        )
+        })
 
-        eventSource.onmessage = (event) => {
-          const data = JSON.parse(event.data)
+        const result = await response.json()
 
-          if (data.type === 'complete') {
-            // Research completed
-            eventSource.close()
-            const result = data.result
+        if (!result.success) {
+          throw new Error(result.error || 'Deep research failed')
+        }
 
-            // Format comprehensive response
-            let response = `## ${result.main_question}\n\n`
-            response += `**Direct Answer:**\n${result.direct_answer}\n\n`
+        // Format comprehensive response
+        let responseText = `## ${result.main_question}\n\n`
+        responseText += `**Direct Answer:**\n${result.direct_answer}\n\n`
 
-            if (result.key_findings?.length > 0) {
-              response += `**Key Findings:**\n`
-              result.key_findings.forEach((finding: string, idx: number) => {
-                response += `${idx + 1}. ${finding}\n`
-              })
-              response += '\n'
-            }
+        if (result.key_findings?.length > 0) {
+          responseText += `**Key Findings:**\n`
+          result.key_findings.forEach((finding: string, idx: number) => {
+            responseText += `${idx + 1}. ${finding}\n`
+          })
+          responseText += '\n'
+        }
 
-            // Add visualizations section
-            if (result.visualizations?.length > 0) {
-              response += `**Visualizations:**\n\n`
-              result.visualizations.forEach((viz: any, idx: number) => {
-                response += `<div class="visualization-container" style="margin: 16px 0; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">\n`
-                response += `<p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;"><strong>Figure ${idx + 1}:</strong> ${viz.caption}</p>\n`
-                response += `<img src="data:${viz.format === 'png' ? 'image/png' : 'image/jpeg'};base64,${viz.data}" style="max-width: 100%; height: auto; border-radius: 4px;" />\n`
-                response += `</div>\n\n`
-              })
-            }
+        // Add visualizations section
+        if (result.visualizations?.length > 0) {
+          responseText += `**Visualizations:**\n\n`
+          result.visualizations.forEach((viz: any, idx: number) => {
+            responseText += `<div class="visualization-container" style="margin: 16px 0; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">\n`
+            responseText += `<p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;"><strong>Figure ${idx + 1}:</strong> ${viz.caption}</p>\n`
+            responseText += `<img src="data:${viz.format === 'png' ? 'image/png' : 'image/jpeg'};base64,${viz.data}" style="max-width: 100%; height: auto; border-radius: 4px;" />\n`
+            responseText += `</div>\n\n`
+          })
+        }
 
-            if (result.data_coverage) {
-              response += `**Data Coverage:**\n`
-              if (result.data_coverage.questions_answered) {
-                response += `✅ Answered: ${result.data_coverage.questions_answered} sub-questions\n`
-              }
-              if (result.data_coverage.gaps?.length > 0) {
-                response += `⚠️ Gaps: ${result.data_coverage.gaps.join(', ')}\n`
-              }
-              response += '\n'
-            }
-
-            if (result.follow_up_questions?.length > 0) {
-              response += `**Suggested Follow-ups:**\n`
-              result.follow_up_questions.forEach((q: string, idx: number) => {
-                response += `${idx + 1}. ${q}\n`
-              })
-            }
-
-            response += `\n_Analysis completed in ${result.execution_time_seconds.toFixed(1)}s_`
-
-            // Save the full report data
-            setDeepResearchReport(result)
-
-            // Switch to report view
-            setCurrentView('report')
-
-            // Replace loading message with result
-            setMessages((prev) => {
-              const newMessages = [...prev]
-              newMessages[newMessages.length - 1] = {
-                role: 'assistant',
-                content: `✅ Deep research complete! View the full report in the **Report** tab.`
-              }
-              return newMessages
-            })
-          } else if (data.type === 'error') {
-            // Error occurred
-            eventSource.close()
-            setMessages((prev) => {
-              const newMessages = [...prev]
-              newMessages[newMessages.length - 1] = {
-                role: 'assistant',
-                content: `❌ Deep research error: ${data.error}`
-              }
-              return newMessages
-            })
-          } else if (data.stage) {
-            // Progress update
-            const progressBar = '█'.repeat(data.stage) + '░'.repeat(6 - data.stage)
-            const progress = `🧠 Deep Research in progress...\n\n**Stage ${data.stage}/6:** ${data.message}\n\n${progressBar} ${Math.round(data.stage / 6 * 100)}%`
-
-            setMessages((prev) => {
-              const newMessages = [...prev]
-              newMessages[newMessages.length - 1] = {
-                role: 'assistant',
-                content: progress
-              }
-              return newMessages
-            })
+        if (result.data_coverage) {
+          responseText += `**Data Coverage:**\n`
+          if (result.data_coverage.questions_answered) {
+            responseText += `✅ Answered: ${result.data_coverage.questions_answered} sub-questions\n`
           }
+          if (result.data_coverage.gaps?.length > 0) {
+            responseText += `⚠️ Gaps: ${result.data_coverage.gaps.join(', ')}\n`
+          }
+          responseText += '\n'
         }
 
-        eventSource.onerror = (error) => {
-          console.error('EventSource error:', error)
-          eventSource.close()
-          setMessages((prev) => {
-            const newMessages = [...prev]
-            newMessages[newMessages.length - 1] = {
-              role: 'assistant',
-              content: '❌ Connection error during deep research'
-            }
-            return newMessages
+        if (result.follow_up_questions?.length > 0) {
+          responseText += `**Suggested Follow-ups:**\n`
+          result.follow_up_questions.forEach((q: string, idx: number) => {
+            responseText += `${idx + 1}. ${q}\n`
           })
         }
-      } catch (error: any) {
+
+        responseText += `\n_Analysis completed in ${result.execution_time_seconds.toFixed(1)}s_`
+
+        // Save infographic if generated
+        if (result.infographic) {
+          setCurrentInfographic(result.infographic)
+          responseText += `\n\n📊 **Infographic report generated!** See download button in Report tab.`
+        }
+
+        // Save the full report data
+        setDeepResearchReport(result)
+
+        // Switch to report view
+        setCurrentView('report')
+
+        // Replace loading message with result
         setMessages((prev) => {
           const newMessages = [...prev]
           newMessages[newMessages.length - 1] = {
             role: 'assistant',
-            content: `❌ Deep research error: ${error.message || 'Unknown error'}`
+            content: `✅ Deep research complete! View the full report in the **Report** tab.`
+          }
+          return newMessages
+        })
+
+      } catch (error: any) {
+        console.error('Deep research failed:', error)
+        setMessages((prev) => {
+          const newMessages = [...prev]
+          newMessages[newMessages.length - 1] = {
+            role: 'assistant',
+            content: `❌ Deep research failed: ${error.message || 'Unknown error'}`
           }
           return newMessages
         })
@@ -538,6 +518,12 @@ export default function DatasetDetail() {
         isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting}
         analysisMode={analysisMode}
         onModeChange={setAnalysisMode}
+        generateInfographic={generateInfographic}
+        onInfographicToggle={setGenerateInfographic}
+        infographicFormat={infographicFormat}
+        onInfographicFormatChange={setInfographicFormat}
+        infographicColorScheme={infographicColorScheme}
+        onInfographicColorSchemeChange={setInfographicColorScheme}
       />
 
       {/* Code Preview Modal */}
@@ -677,8 +663,60 @@ export default function DatasetDetail() {
           </TabsContent>
 
           {/* Report View - Shows Deep Research report */}
-          <TabsContent value="report" className="flex-1 m-0 overflow-hidden">
-            <ReportView report={deepResearchReport} />
+          <TabsContent value="report" className="flex-1 m-0 overflow-hidden flex flex-col">
+            {deepResearchReport && (
+              <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-lg">Deep Research Report</h3>
+                    <p className="text-sm text-gray-600 mt-1">{deepResearchReport.main_question}</p>
+                  </div>
+
+                  {/* Infographic Download Button */}
+                  {currentInfographic && (
+                    <button
+                      onClick={() => {
+                        // Download infographic
+                        const { data, format, filename } = currentInfographic
+
+                        try {
+                          // Convert base64 to blob
+                          const byteCharacters = atob(data)
+                          const byteNumbers = new Array(byteCharacters.length)
+                          for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i)
+                          }
+                          const byteArray = new Uint8Array(byteNumbers)
+                          const mimeType = format === 'pdf' ? 'application/pdf' : 'image/png'
+                          const blob = new Blob([byteArray], { type: mimeType })
+
+                          // Trigger download
+                          const url = URL.createObjectURL(blob)
+                          const link = document.createElement('a')
+                          link.href = url
+                          link.download = filename
+                          link.click()
+                          URL.revokeObjectURL(url)
+                        } catch (error) {
+                          console.error('Download failed:', error)
+                          alert('Failed to download infographic')
+                        }
+                      }}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors shadow-sm"
+                    >
+                      <span>📊</span>
+                      <span>Download {currentInfographic.format.toUpperCase()} Infographic</span>
+                      <span className="text-xs opacity-90 ml-1">
+                        ({(currentInfographic.size_bytes / 1024).toFixed(1)} KB)
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="flex-1 overflow-hidden">
+              <ReportView report={deepResearchReport} />
+            </div>
           </TabsContent>
 
           {/* Code View - Shows Python code and execution details */}

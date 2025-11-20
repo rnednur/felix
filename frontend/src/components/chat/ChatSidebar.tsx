@@ -30,6 +30,12 @@ interface ChatSidebarProps {
   isLoading?: boolean
   analysisMode?: AnalysisMode
   onModeChange?: (mode: AnalysisMode) => void
+  generateInfographic?: boolean
+  onInfographicToggle?: (value: boolean) => void
+  infographicFormat?: 'pdf' | 'png'
+  onInfographicFormatChange?: (format: 'pdf' | 'png') => void
+  infographicColorScheme?: 'professional' | 'modern' | 'corporate'
+  onInfographicColorSchemeChange?: (scheme: 'professional' | 'modern' | 'corporate') => void
 }
 
 export function ChatSidebar({
@@ -39,7 +45,13 @@ export function ChatSidebar({
   messages,
   isLoading,
   analysisMode = 'auto',
-  onModeChange
+  onModeChange,
+  generateInfographic = false,
+  onInfographicToggle,
+  infographicFormat = 'pdf',
+  onInfographicFormatChange,
+  infographicColorScheme = 'professional',
+  onInfographicColorSchemeChange
 }: ChatSidebarProps) {
   const [input, setInput] = useState('')
   const navigate = useNavigate()
@@ -244,8 +256,58 @@ export function ChatSidebar({
           </div>
         )}
         {analysisMode === 'deep-research' && (
-          <div className="text-xs text-gray-500">
-            🧠 Deep research: Multi-stage analysis with insights
+          <div className="space-y-3">
+            <div className="text-xs text-gray-500">
+              🧠 Deep research: Multi-stage analysis with insights
+            </div>
+
+            {/* Infographic Options */}
+            <div className="space-y-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={generateInfographic}
+                  onChange={(e) => onInfographicToggle?.(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  📊 Generate infographic report
+                </span>
+              </label>
+
+              {generateInfographic && (
+                <div className="ml-6 space-y-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Format:
+                    </label>
+                    <select
+                      value={infographicFormat}
+                      onChange={(e) => onInfographicFormatChange?.(e.target.value as 'pdf' | 'png')}
+                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="pdf">PDF (best for reports)</option>
+                      <option value="png">PNG (best for presentations)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Theme:
+                    </label>
+                    <select
+                      value={infographicColorScheme}
+                      onChange={(e) => onInfographicColorSchemeChange?.(e.target.value as 'professional' | 'modern' | 'corporate')}
+                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="professional">Professional (clean blue)</option>
+                      <option value="modern">Modern (dark navy)</option>
+                      <option value="corporate">Corporate (traditional)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
         {input.startsWith('/') && (
