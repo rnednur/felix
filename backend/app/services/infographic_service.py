@@ -17,7 +17,6 @@ import json
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
-import os
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
@@ -589,11 +588,12 @@ class InfographicService:
             Dict with base64 encoded infographic data
         """
         import httpx
+        from app.core.config import settings
 
-        # Get API key
-        api_key = os.getenv('OPENROUTER_API_KEY')
+        # Get API key from settings
+        api_key = settings.OPENROUTER_API_KEY
         if not api_key:
-            raise ValueError("OPENROUTER_API_KEY not found in environment variables")
+            raise ValueError("OPENROUTER_API_KEY not found in settings")
 
         # Prepare research summary for prompt
         main_question = research_result.get('main_question', 'Research Analysis')
