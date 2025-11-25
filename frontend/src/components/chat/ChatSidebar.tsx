@@ -30,6 +30,8 @@ interface ChatSidebarProps {
   isLoading?: boolean
   analysisMode?: AnalysisMode
   onModeChange?: (mode: AnalysisMode) => void
+  verboseMode?: boolean
+  onVerboseModeToggle?: (value: boolean) => void
   generateInfographic?: boolean
   onInfographicToggle?: (value: boolean) => void
   infographicFormat?: 'pdf' | 'png'
@@ -48,6 +50,8 @@ export function ChatSidebar({
   isLoading,
   analysisMode = 'auto',
   onModeChange,
+  verboseMode = true,
+  onVerboseModeToggle,
   generateInfographic = false,
   onInfographicToggle,
   infographicFormat = 'pdf',
@@ -263,6 +267,31 @@ export function ChatSidebar({
           <div className="space-y-3">
             <div className="text-xs text-gray-500">
               🧠 Deep research: Multi-stage analysis with insights
+            </div>
+
+            {/* Verbose Mode Toggle */}
+            <div className="space-y-2 bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={verboseMode}
+                  onChange={(e) => onVerboseModeToggle?.(e.target.checked)}
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  📄 Verbose Mode (Multi-page comprehensive analysis)
+                </span>
+              </label>
+              {verboseMode && (
+                <div className="ml-6 text-xs text-gray-600">
+                  Includes: Executive Summary, Methodology, Detailed Findings, Cross-Analysis, Limitations, Recommendations, Technical Appendix
+                </div>
+              )}
+              {!verboseMode && (
+                <div className="ml-6 text-xs text-gray-500">
+                  Brief mode: Quick insights and key findings only
+                </div>
+              )}
             </div>
 
             {/* Infographic Options */}

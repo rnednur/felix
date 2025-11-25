@@ -47,6 +47,9 @@ export default function DatasetDetail() {
     mode: string
   } | null>(null)
 
+  // Deep research options
+  const [verboseMode, setVerboseMode] = useState(true)
+
   // Infographic options
   const [generateInfographic, setGenerateInfographic] = useState(false)
   const [infographicFormat, setInfographicFormat] = useState<'pdf' | 'png'>('pdf')
@@ -159,6 +162,7 @@ export default function DatasetDetail() {
           sub_questions: editedPlan.sub_questions,
           enable_python: true,
           enable_world_knowledge: true,
+          verbose_mode: verboseMode,
           generate_infographic: generateInfographic,
           infographic_format: infographicFormat,
           infographic_color_scheme: infographicColorScheme,
@@ -534,6 +538,8 @@ export default function DatasetDetail() {
         isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting}
         analysisMode={analysisMode}
         onModeChange={setAnalysisMode}
+        verboseMode={verboseMode}
+        onVerboseModeToggle={setVerboseMode}
         generateInfographic={generateInfographic}
         onInfographicToggle={setGenerateInfographic}
         infographicFormat={infographicFormat}
