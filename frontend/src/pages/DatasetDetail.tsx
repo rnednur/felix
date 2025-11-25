@@ -11,6 +11,7 @@ import { ReportView } from '@/components/canvas/ReportView'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
+import { PlanEditor } from '@/components/research/PlanEditor'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText } from 'lucide-react'
@@ -51,6 +52,10 @@ export default function DatasetDetail() {
   const [infographicFormat, setInfographicFormat] = useState<'pdf' | 'png'>('pdf')
   const [infographicColorScheme, setInfographicColorScheme] = useState<'professional' | 'modern' | 'corporate'>('professional')
   const [currentInfographic, setCurrentInfographic] = useState<any>(null)
+
+  // Planning flow
+  const [showPlanEditor, setShowPlanEditor] = useState(false)
+  const [currentPlan, setCurrentPlan] = useState<any>(null)
 
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
@@ -130,6 +135,71 @@ export default function DatasetDetail() {
     }
 
     return insights.join('\n')
+  }
+
+  // Handle execute plan when user clicks "Start research" in plan editor
+  const handleExecutePlan = async (editedPlan: { main_question: string; sub_questions: any[] }) => {
+    setShowPlanEditor(false)
+
+    setMessages((prev) => [...prev, {
+      role: 'assistant',
+      content: '🧠 Executing research plan...'
+    }])
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
+
+      const response = await fetch(`${apiUrl}/deep-research/execute-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset_id: id!,
+          main_question: editedPlan.main_question,
+          sub_questions: editedPlan.sub_questions,
+          enable_python: true,
+          enable_world_knowledge: true,
+          generate_infographic: generateInfographic,
+          infographic_format: infographicFormat,
+          infographic_color_scheme: infographicColorScheme
+        })
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Research execution failed')
+      }
+
+      // Save results
+      setDeepResearchReport(result)
+      if (result.infographic) {
+        setCurrentInfographic(result.infographic)
+      }
+
+      // Switch to report view
+      setCurrentView('report')
+
+      // Update message
+      setMessages((prev) => {
+        const newMessages = [...prev]
+        newMessages[newMessages.length - 1] = {
+          role: 'assistant',
+          content: `✅ Research complete! View the full report in the **Report** tab.`
+        }
+        return newMessages
+      })
+
+    } catch (error: any) {
+      console.error('Plan execution failed:', error)
+      setMessages((prev) => {
+        const newMessages = [...prev]
+        newMessages[newMessages.length - 1] = {
+          role: 'assistant',
+          content: `❌ Execution failed: ${error.message || 'Unknown error'}`
+        }
+        return newMessages
+      })
+    }
   }
 
   const handleQuerySubmit = async (query: string, mode: AnalysisMode = 'auto') => {
@@ -245,106 +315,50 @@ export default function DatasetDetail() {
     if (mode === 'deep-research') {
       setMessages((prev) => [...prev, {
         role: 'assistant',
-        content: '🧠 Starting deep research analysis...\n\n**Progress:**\n⏳ Initializing...'
+        content: '🧠 Generating research plan...'
       }])
 
       try {
         const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
 
-        // Use regular POST endpoint (supports infographics)
-        const response = await fetch(`${apiUrl}/deep-research/analyze`, {
+        // Step 1: Generate plan first
+        const planResponse = await fetch(`${apiUrl}/deep-research/plan`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             dataset_id: id!,
             question: query,
-            max_sub_questions: 10,
-            enable_python: true,
-            enable_world_knowledge: true,
-            generate_infographic: generateInfographic,
-            infographic_format: infographicFormat,
-            infographic_color_scheme: infographicColorScheme
+            max_sub_questions: 10
           })
         })
 
-        const result = await response.json()
+        const plan = await planResponse.json()
 
-        if (!result.success) {
-          throw new Error(result.error || 'Deep research failed')
+        if (!plan.success) {
+          throw new Error(plan.error || 'Plan generation failed')
         }
 
-        // Format comprehensive response
-        let responseText = `## ${result.main_question}\n\n`
-        responseText += `**Direct Answer:**\n${result.direct_answer}\n\n`
+        // Step 2: Show plan editor modal
+        setCurrentPlan(plan)
+        setShowPlanEditor(true)
 
-        if (result.key_findings?.length > 0) {
-          responseText += `**Key Findings:**\n`
-          result.key_findings.forEach((finding: string, idx: number) => {
-            responseText += `${idx + 1}. ${finding}\n`
-          })
-          responseText += '\n'
-        }
-
-        // Add visualizations section
-        if (result.visualizations?.length > 0) {
-          responseText += `**Visualizations:**\n\n`
-          result.visualizations.forEach((viz: any, idx: number) => {
-            responseText += `<div class="visualization-container" style="margin: 16px 0; padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">\n`
-            responseText += `<p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;"><strong>Figure ${idx + 1}:</strong> ${viz.caption}</p>\n`
-            responseText += `<img src="data:${viz.format === 'png' ? 'image/png' : 'image/jpeg'};base64,${viz.data}" style="max-width: 100%; height: auto; border-radius: 4px;" />\n`
-            responseText += `</div>\n\n`
-          })
-        }
-
-        if (result.data_coverage) {
-          responseText += `**Data Coverage:**\n`
-          if (result.data_coverage.questions_answered) {
-            responseText += `✅ Answered: ${result.data_coverage.questions_answered} sub-questions\n`
-          }
-          if (result.data_coverage.gaps?.length > 0) {
-            responseText += `⚠️ Gaps: ${result.data_coverage.gaps.join(', ')}\n`
-          }
-          responseText += '\n'
-        }
-
-        if (result.follow_up_questions?.length > 0) {
-          responseText += `**Suggested Follow-ups:**\n`
-          result.follow_up_questions.forEach((q: string, idx: number) => {
-            responseText += `${idx + 1}. ${q}\n`
-          })
-        }
-
-        responseText += `\n_Analysis completed in ${result.execution_time_seconds.toFixed(1)}s_`
-
-        // Save infographic if generated
-        if (result.infographic) {
-          setCurrentInfographic(result.infographic)
-          responseText += `\n\n📊 **Infographic report generated!** See download button in Report tab.`
-        }
-
-        // Save the full report data
-        setDeepResearchReport(result)
-
-        // Switch to report view
-        setCurrentView('report')
-
-        // Replace loading message with result
+        // Update message to show plan is ready
         setMessages((prev) => {
           const newMessages = [...prev]
           newMessages[newMessages.length - 1] = {
             role: 'assistant',
-            content: `✅ Deep research complete! View the full report in the **Report** tab.`
+            content: '✅ Research plan ready! Review and edit your plan in the modal.'
           }
           return newMessages
         })
 
       } catch (error: any) {
-        console.error('Deep research failed:', error)
+        console.error('Plan generation failed:', error)
         setMessages((prev) => {
           const newMessages = [...prev]
           newMessages[newMessages.length - 1] = {
             role: 'assistant',
-            content: `❌ Deep research failed: ${error.message || 'Unknown error'}`
+            content: `❌ Plan generation failed: ${error.message || 'Unknown error'}`
           }
           return newMessages
         })
@@ -554,6 +568,17 @@ export default function DatasetDetail() {
           columns={schema.columns.map(col => ({ name: col.name, dtype: col.dtype }))}
           onClose={() => setShowSettingsPanel(false)}
         />
+      )}
+
+      {/* Plan Editor Modal */}
+      {showPlanEditor && currentPlan && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <PlanEditor
+            plan={currentPlan}
+            onExecute={handleExecutePlan}
+            onCancel={() => setShowPlanEditor(false)}
+          />
+        </div>
       )}
 
       {/* Main Content */}

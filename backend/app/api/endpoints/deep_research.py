@@ -45,6 +45,35 @@ class DeepResearchResponse(BaseModel):
     infographic: Optional[Dict[str, Any]] = None  # Added: optional infographic data
 
 
+class PlanRequest(BaseModel):
+    """Request for research plan generation"""
+    dataset_id: str = Field(..., description="Dataset ID to analyze")
+    question: str = Field(..., description="Main research question")
+    max_sub_questions: int = Field(default=10, ge=1, le=20, description="Maximum sub-questions to generate")
+
+
+class PlanResponse(BaseModel):
+    """Response containing research plan"""
+    success: bool
+    main_question: str
+    sub_questions: List[Dict[str, Any]]
+    estimated_time: str
+    research_stages: List[str]
+    error: Optional[str] = None
+
+
+class ExecutePlanRequest(BaseModel):
+    """Request to execute research with edited plan"""
+    dataset_id: str = Field(..., description="Dataset ID to analyze")
+    main_question: str = Field(..., description="Main research question")
+    sub_questions: List[Dict[str, Any]] = Field(..., description="User-edited sub-questions")
+    enable_python: bool = Field(default=True, description="Enable Python analysis")
+    enable_world_knowledge: bool = Field(default=True, description="Enable world knowledge enrichment")
+    generate_infographic: bool = Field(default=False, description="Auto-generate infographic")
+    infographic_format: str = Field(default='pdf', description="Infographic format if auto-generating")
+    infographic_color_scheme: str = Field(default='professional', description="Color scheme if auto-generating")
+
+
 class InfographicRequest(BaseModel):
     """Request for infographic generation"""
     format: str = Field(default='pdf', description="Output format: 'pdf' or 'png'")
@@ -359,6 +388,272 @@ async def analyze_with_infographic(
     except Exception as e:
         logger.error(f"Analysis with infographic failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/plan", response_model=PlanResponse)
+async def create_research_plan(
+    request: PlanRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate research plan without executing
+
+    Returns decomposed sub-questions for user review and editing.
+    This allows users to see and modify the research plan before execution.
+    """
+
+    try:
+        # Verify dataset exists
+        dataset = db.query(Dataset).filter(Dataset.id == request.dataset_id).first()
+        if not dataset:
+            raise HTTPException(status_code=404, detail=f"Dataset {request.dataset_id} not found")
+
+        logger.info(f"Generating research plan for: {request.question}")
+
+        # Initialize service
+        service = DeepResearchService()
+
+        # Load schema
+        schema = service.storage_service.load_schema(request.dataset_id)
+
+        # Decompose question into sub-questions
+        sub_questions = await service._decompose_question(
+            request.question,
+            schema,
+            request.max_sub_questions
+        )
+
+        logger.info(f"Generated {len(sub_questions)} sub-questions")
+
+        # Format response
+        return PlanResponse(
+            success=True,
+            main_question=request.question,
+            sub_questions=[
+                {
+                    "id": f"sq_{i}",
+                    "question": sq.question,
+                    "intent_type": sq.intent_type,
+                    "desired_output": sq.desired_output,
+                    "priority": sq.priority,
+                    "editable": True
+                }
+                for i, sq in enumerate(sub_questions)
+            ],
+            estimated_time=f"{len(sub_questions) * 2}s",
+            research_stages=[
+                "Research Websites",
+                "Analyze Results",
+                "Create Report"
+            ]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Plan generation failed: {str(e)}", exc_info=True)
+        return PlanResponse(
+            success=False,
+            main_question=request.question,
+            sub_questions=[],
+            estimated_time="0s",
+            research_stages=[],
+            error=str(e)
+        )
+
+
+@router.post("/execute-plan", response_model=DeepResearchResponse)
+async def execute_research_plan(
+    request: ExecutePlanRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Execute research with user-edited plan
+
+    Takes the edited plan from the user and executes the research,
+    skipping the decomposition stage since we already have the sub-questions.
+    """
+
+    try:
+        # Verify dataset exists
+        dataset = db.query(Dataset).filter(Dataset.id == request.dataset_id).first()
+        if not dataset:
+            raise HTTPException(status_code=404, detail=f"Dataset {request.dataset_id} not found")
+
+        logger.info(f"Executing research plan for: {request.main_question}")
+
+        # Initialize service
+        service = DeepResearchService()
+
+        # Load schema
+        schema = service.storage_service.load_schema(request.dataset_id)
+
+        # Convert sub_questions dict back to SubQuestion objects
+        from app.services.deep_research_service import SubQuestion
+        sub_questions = [
+            SubQuestion(
+                question=sq['question'],
+                intent_type=sq.get('intent_type', 'descriptive'),
+                desired_output=sq.get('desired_output', 'table'),
+                priority=sq.get('priority', 2)
+            )
+            for sq in request.sub_questions
+        ]
+
+        logger.info(f"Executing with {len(sub_questions)} sub-questions")
+
+        # Execute research pipeline starting from classification
+        # (skip decomposition since we have user-edited sub-questions)
+
+        # Stage 2: Classification & Schema Mapping
+        classified = await service._classify_and_map(sub_questions, schema)
+
+        # Stage 3: Query Execution
+        results = await service._execute_queries(
+            classified,
+            request.dataset_id,
+            schema,
+            request.enable_python
+        )
+
+        # Stage 4: World Knowledge Enrichment
+        world_knowledge = {}
+        if request.enable_world_knowledge:
+            world_knowledge = await service._enrich_world_knowledge(classified, results)
+
+        # Stage 5: Synthesis & Insight Generation
+        synthesis = await service._synthesize_insights(
+            request.main_question,
+            sub_questions,
+            classified,
+            results,
+            world_knowledge,
+            schema
+        )
+
+        # Stage 6: Follow-up Questions
+        follow_ups = await service._suggest_follow_ups(
+            request.main_question,
+            synthesis,
+            schema
+        )
+
+        # Extract follow-up questions
+        follow_up_questions = []
+        if isinstance(follow_ups, list):
+            for item in follow_ups:
+                if isinstance(item, dict):
+                    follow_up_questions.append(item.get('question', str(item)))
+                else:
+                    follow_up_questions.append(str(item))
+
+        # Collect visualizations
+        visualizations = []
+        for r in results:
+            if r.success and r.visualization:
+                viz_list = r.visualization if isinstance(r.visualization, list) else [r.visualization]
+                for viz in viz_list:
+                    visualizations.append({
+                        'question': r.question,
+                        'type': viz.get('type', 'image'),
+                        'format': viz.get('format', 'png'),
+                        'data': viz.get('data'),
+                        'caption': r.question
+                    })
+
+        # Build data coverage
+        data_coverage = {
+            'questions_answered': sum(1 for r in results if r.success),
+            'total_questions': len(sub_questions),
+            'gaps': synthesis.get('gaps', []),
+            'methods_used': list(set(r.method for r in results))
+        }
+
+        # Generate infographic if requested
+        infographic_data = None
+        if request.generate_infographic:
+            try:
+                logger.info("Auto-generating infographic...")
+                infographic_service = InfographicService(template=request.infographic_color_scheme)
+
+                result_for_infographic = {
+                    'research_id': f"plan_exec_{int(datetime.utcnow().timestamp())}",
+                    'main_question': request.main_question,
+                    'sub_questions_count': len(sub_questions),
+                    'direct_answer': synthesis.get('direct_answer', ''),
+                    'key_findings': synthesis.get('key_findings', []),
+                    'supporting_details': synthesis.get('supporting_details', {}),
+                    'data_coverage': data_coverage,
+                    'follow_up_questions': follow_up_questions,
+                    'visualizations': visualizations,
+                    'stages_completed': [
+                        'Question decomposition (user-edited)',
+                        'Schema mapping',
+                        'Query execution',
+                        'Knowledge enrichment' if request.enable_world_knowledge else 'Knowledge enrichment (skipped)',
+                        'Insight synthesis',
+                        'Follow-up generation'
+                    ],
+                    'execution_time_seconds': 0
+                }
+
+                infographic_result = infographic_service.generate_infographic(
+                    research_result=result_for_infographic,
+                    format=request.infographic_format,
+                    include_charts=True,
+                    include_visualizations=True
+                )
+                infographic_data = {
+                    'data': infographic_result['data'],
+                    'format': infographic_result['format'],
+                    'filename': infographic_result['filename'],
+                    'size_bytes': infographic_result['size_bytes']
+                }
+                logger.info(f"Infographic generated: {infographic_result['filename']}")
+            except Exception as e:
+                logger.error(f"Infographic generation failed: {str(e)}", exc_info=True)
+
+        logger.info(f"Plan execution complete")
+
+        # Return response
+        return DeepResearchResponse(
+            success=True,
+            main_question=request.main_question,
+            direct_answer=synthesis.get('direct_answer', 'Analysis complete'),
+            key_findings=synthesis.get('key_findings', []),
+            supporting_details=synthesis.get('supporting_details', []),
+            data_coverage=data_coverage,
+            follow_up_questions=follow_up_questions,
+            visualizations=visualizations,
+            stages_completed=[
+                'Question decomposition (user-edited)',
+                'Schema mapping',
+                'Query execution',
+                'Knowledge enrichment' if request.enable_world_knowledge else 'Knowledge enrichment (skipped)',
+                'Insight synthesis',
+                'Follow-up generation'
+            ],
+            execution_time_seconds=0,
+            infographic=infographic_data
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Plan execution failed: {str(e)}", exc_info=True)
+        return DeepResearchResponse(
+            success=False,
+            main_question=request.main_question,
+            direct_answer="",
+            key_findings=[],
+            supporting_details=[],
+            data_coverage={},
+            follow_up_questions=[],
+            visualizations=[],
+            stages_completed=[],
+            execution_time_seconds=0,
+            error=str(e)
+        )
 
 
 @router.get("/health")
