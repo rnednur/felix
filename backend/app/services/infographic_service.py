@@ -626,6 +626,7 @@ DESIGN REQUIREMENTS:
 The infographic should be suitable for business/enterprise presentations."""
 
         # Call OpenRouter API with Gemini Nano Banana Pro
+        # Uses chat completions endpoint with image modality
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -635,38 +636,48 @@ The infographic should be suitable for business/enterprise presentations."""
 
         payload = {
             "model": "google/gemini-3-pro-image-preview",
-            "prompt": prompt,
-            "max_tokens": 1024,
-            "temperature": 0.7,
-            "aspect_ratio": "portrait",  # Good for infographics
-            "num_images": 1
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "extra_body": {
+                "modalities": ["image", "text"]
+            }
         }
 
         try:
-            with httpx.Client(timeout=60.0) as client:
+            with httpx.Client(timeout=120.0) as client:
                 response = client.post(
-                    "https://openrouter.ai/api/v1/images/generate",
+                    "https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
                     json=payload
                 )
                 response.raise_for_status()
                 result = response.json()
 
-            # Extract image data
-            if 'data' in result and len(result['data']) > 0:
-                image_data = result['data'][0]
+            # Extract image from response
+            if 'choices' in result and len(result['choices']) > 0:
+                message = result['choices'][0]['message']
 
-                # Handle different response formats
-                if 'b64_json' in image_data:
-                    image_base64 = image_data['b64_json']
-                elif 'url' in image_data:
-                    # Download from URL
-                    with httpx.Client() as client:
-                        img_response = client.get(image_data['url'])
-                        img_response.raise_for_status()
-                        image_base64 = base64.b64encode(img_response.content).decode('utf-8')
+                # Check if images are in the response
+                if 'images' in message and len(message['images']) > 0:
+                    image_url = message['images'][0]['image_url']['url']
+
+                    # Handle base64 data URL
+                    if image_url.startswith('data:image'):
+                        # Extract base64 data from data URL
+                        # Format: data:image/png;base64,<base64_data>
+                        image_base64 = image_url.split(',')[1]
+                    else:
+                        # Download from URL if it's a regular URL
+                        with httpx.Client() as dl_client:
+                            img_response = dl_client.get(image_url)
+                            img_response.raise_for_status()
+                            image_base64 = base64.b64encode(img_response.content).decode('utf-8')
                 else:
-                    raise ValueError("No image data found in API response")
+                    raise ValueError("No images found in API response")
 
                 # If PDF requested, convert PNG to PDF
                 if format == 'pdf':

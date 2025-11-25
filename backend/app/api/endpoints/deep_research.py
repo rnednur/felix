@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 from app.core.database import get_db
 from app.services.deep_research_service import DeepResearchService
 from app.services.infographic_service import InfographicService
