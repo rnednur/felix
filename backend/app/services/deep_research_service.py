@@ -87,6 +87,7 @@ class DeepResearchService:
                       max_sub_questions: int = 10,
                       enable_python: bool = True,
                       enable_world_knowledge: bool = True,
+                      verbose_mode: bool = True,
                       progress_callback: Optional[callable] = None) -> Dict[str, Any]:
         """
         Execute full deep research pipeline
@@ -97,6 +98,7 @@ class DeepResearchService:
         - Supporting details
         - Data coverage & gaps
         - Suggested next questions
+        - (Optional) Verbose analysis with executive summary, methodology, detailed findings, etc.
         """
 
         start_time = time.time()
@@ -169,6 +171,22 @@ class DeepResearchService:
             schema
         )
 
+        # Stage 7 (Optional): Generate Verbose Analysis
+        verbose_analysis = {}
+        if verbose_mode:
+            print(f"[{research_id}] Stage 7: Generating verbose multi-page analysis...")
+            if progress_callback:
+                await progress_callback(7, "Generating comprehensive report with detailed analysis...")
+            verbose_analysis = await self._generate_verbose_analysis(
+                main_question,
+                sub_questions,
+                classified,
+                results,
+                world_knowledge,
+                synthesis,
+                schema
+            )
+
         # Track execution time
         execution_time = time.time() - start_time
 
@@ -203,7 +221,7 @@ class DeepResearchService:
                         'caption': r.question
                     })
 
-        return {
+        result = {
             'research_id': research_id,
             'main_question': main_question,
             'sub_questions_count': len(sub_questions),
@@ -219,7 +237,8 @@ class DeepResearchService:
                 'Query execution',
                 'Knowledge enrichment' if enable_world_knowledge else 'Knowledge enrichment (skipped)',
                 'Insight synthesis',
-                'Follow-up generation'
+                'Follow-up generation',
+                'Verbose analysis generation' if verbose_mode else None
             ],
             'execution_time_seconds': execution_time,
             'execution_summary': {
@@ -229,6 +248,23 @@ class DeepResearchService:
                 'methods_used': list(set(r.method for r in results))
             }
         }
+
+        # Add verbose analysis fields if generated
+        if verbose_mode and verbose_analysis:
+            result.update({
+                'executive_summary': verbose_analysis.get('executive_summary'),
+                'methodology': verbose_analysis.get('methodology'),
+                'detailed_findings': verbose_analysis.get('detailed_findings'),
+                'cross_analysis': verbose_analysis.get('cross_analysis'),
+                'limitations': verbose_analysis.get('limitations'),
+                'recommendations': verbose_analysis.get('recommendations'),
+                'technical_appendix': verbose_analysis.get('technical_appendix')
+            })
+
+        # Filter out None values from stages_completed
+        result['stages_completed'] = [s for s in result['stages_completed'] if s is not None]
+
+        return result
 
     async def _decompose_question(self,
                                   main_question: str,
@@ -606,6 +642,237 @@ Return as JSON:
         parsed = self._parse_json_response(response)
 
         return parsed.get('follow_ups', [])
+
+    async def _generate_verbose_analysis(self,
+                                        main_question: str,
+                                        sub_questions: List[SubQuestion],
+                                        classified: List[ClassifiedQuestion],
+                                        results: List[Any],
+                                        world_knowledge: Dict,
+                                        synthesis: Dict,
+                                        schema: Dict) -> Dict[str, Any]:
+        """Generate comprehensive verbose analysis with multiple sections"""
+
+        results_summary = self._summarize_results(results)
+
+        # 1. Executive Summary (2-3 paragraphs)
+        exec_summary_prompt = f"""You are a senior research analyst writing an executive summary.
+
+Main Question: {main_question}
+
+Key Findings:
+{json.dumps(synthesis.get('key_findings', []), indent=2)}
+
+Direct Answer:
+{synthesis.get('direct_answer', '')}
+
+Write a comprehensive 2-3 paragraph executive summary that:
+- Opens with the most important insight
+- Highlights critical findings with specific numbers
+- Mentions methodology briefly
+- Concludes with implications or recommendations
+
+Return as JSON:
+{{
+  "executive_summary": "Full multi-paragraph text here..."
+}}"""
+
+        exec_response = await self._call_llm(exec_summary_prompt)
+        exec_summary = self._parse_json_response(exec_response).get('executive_summary', '')
+
+        # 2. Methodology & Data Sources
+        methodology = {
+            "total_sub_questions": len(sub_questions),
+            "data_sources": {
+                "dataset_columns": len(schema.get('columns', [])),
+                "total_rows": schema.get('row_count', 0),
+                "data_backed_queries": len([c for c in classified if c.category == 'data_backed']),
+                "world_knowledge_queries": len([c for c in classified if c.category == 'world_knowledge'])
+            },
+            "analysis_methods": [
+                "SQL queries for structured data analysis",
+                "Python for statistical analysis and computations",
+                "World knowledge enrichment via AI",
+                "Cross-referential validation"
+            ],
+            "quality_metrics": {
+                "successful_queries": len([r for r in results if r.success]),
+                "total_queries": len(results),
+                "coverage_percentage": round((len([r for r in results if r.success]) / len(results) * 100) if results else 0, 1)
+            }
+        }
+
+        # 3. Detailed Findings (one entry per sub-question)
+        detailed_findings_prompt = f"""For each sub-question analyzed, provide detailed findings with context and implications.
+
+Main Question: {main_question}
+
+Sub-Questions and Results:
+{json.dumps([{{'question': sq.question, 'results': self._get_result_for_question(sq.question, results)}} for sq in sub_questions[:10]], indent=2)}
+
+For each sub-question, provide:
+- finding_title: Short descriptive title
+- analysis: 2-3 sentences explaining what was found
+- data_points: Specific numbers or facts discovered
+- implications: What this means in context
+- confidence: high/medium/low based on data quality
+
+Return as JSON:
+{{
+  "detailed_findings": [
+    {{
+      "question": "sub-question text",
+      "finding_title": "title",
+      "analysis": "detailed explanation...",
+      "data_points": ["specific fact 1", "specific fact 2"],
+      "implications": "what this means...",
+      "confidence": "high"
+    }}
+  ]
+}}"""
+
+        detailed_response = await self._call_llm(detailed_findings_prompt)
+        detailed_findings = self._parse_json_response(detailed_response).get('detailed_findings', [])
+
+        # 4. Cross-Analysis & Patterns
+        cross_analysis_prompt = f"""Analyze patterns and connections across all findings.
+
+Key Findings:
+{json.dumps(synthesis.get('key_findings', []), indent=2)}
+
+World Knowledge:
+{json.dumps(world_knowledge, indent=2)[:2000]}
+
+Identify:
+- Common themes or patterns
+- Surprising correlations
+- Contradictions or anomalies
+- Temporal trends if applicable
+
+Return as JSON:
+{{
+  "patterns": ["pattern 1", "pattern 2"],
+  "correlations": ["correlation 1"],
+  "anomalies": ["anomaly 1"],
+  "trends": ["trend 1"]
+}}"""
+
+        cross_response = await self._call_llm(cross_analysis_prompt)
+        cross_analysis = self._parse_json_response(cross_response)
+
+        # 5. Limitations & Caveats
+        limitations_prompt = f"""Identify limitations and caveats of this analysis.
+
+Data Coverage:
+{json.dumps(synthesis.get('data_coverage', {}), indent=2)}
+
+Gaps:
+{json.dumps(synthesis.get('gaps', []), indent=2)}
+
+Analysis Methods:
+- SQL queries, Python analysis, World knowledge
+
+Provide honest assessment of:
+- Data quality issues
+- Missing information
+- Assumptions made
+- Methodological limitations
+- Generalizability constraints
+
+Return as JSON:
+{{
+  "limitations": [
+    "Limitation 1 with explanation",
+    "Limitation 2 with explanation"
+  ]
+}}"""
+
+        limitations_response = await self._call_llm(limitations_prompt)
+        limitations = self._parse_json_response(limitations_response).get('limitations', [])
+
+        # 6. Recommendations & Next Steps
+        recommendations_prompt = f"""Based on findings, provide actionable recommendations.
+
+Main Question: {main_question}
+
+Key Findings:
+{json.dumps(synthesis.get('key_findings', []), indent=2)}
+
+Limitations:
+{json.dumps(limitations, indent=2)}
+
+Provide 3-5 specific, actionable recommendations with:
+- What to do
+- Why it matters
+- Priority (high/medium/low)
+- Required resources/data if applicable
+
+Return as JSON:
+{{
+  "recommendations": [
+    {{
+      "recommendation": "specific action",
+      "rationale": "why this is important",
+      "priority": "high",
+      "requirements": "what's needed"
+    }}
+  ]
+}}"""
+
+        recommendations_response = await self._call_llm(recommendations_prompt)
+        recommendations = self._parse_json_response(recommendations_response).get('recommendations', [])
+
+        # 7. Technical Appendix
+        technical_appendix = {
+            "queries_executed": [
+                {
+                    "question": r.question,
+                    "method": r.method,
+                    "success": r.success,
+                    "execution_time_ms": getattr(r, 'execution_time_ms', None)
+                }
+                for r in results[:20]  # Limit to first 20
+            ],
+            "schema_summary": {
+                "columns": [
+                    {
+                        "name": col.get('name'),
+                        "type": col.get('dtype'),
+                        "sample_values": col.get('stats', {}).get('top_values', [])[:3] if 'stats' in col else []
+                    }
+                    for col in schema.get('columns', [])[:15]
+                ],
+                "total_columns": len(schema.get('columns', [])),
+                "total_rows": schema.get('row_count', 0)
+            },
+            "classification_breakdown": {
+                "data_backed": len([c for c in classified if c.category == 'data_backed']),
+                "world_knowledge": len([c for c in classified if c.category == 'world_knowledge']),
+                "mixed": len([c for c in classified if c.category == 'mixed']),
+                "insufficient_data": len([c for c in classified if c.category == 'insufficient_data'])
+            }
+        }
+
+        return {
+            "executive_summary": exec_summary,
+            "methodology": methodology,
+            "detailed_findings": detailed_findings,
+            "cross_analysis": cross_analysis,
+            "limitations": limitations,
+            "recommendations": recommendations,
+            "technical_appendix": technical_appendix
+        }
+
+    def _get_result_for_question(self, question: str, results: List[Any]) -> Dict:
+        """Helper to find result for a specific question"""
+        for r in results:
+            if r.question == question:
+                return {
+                    "success": r.success,
+                    "data": r.data if r.success else None,
+                    "error": r.error if not r.success else None
+                }
+        return {"success": False, "data": None, "error": "Not found"}
 
     # Helper methods
 

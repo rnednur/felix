@@ -25,6 +25,7 @@ class DeepResearchRequest(BaseModel):
     max_sub_questions: int = Field(default=10, ge=1, le=20, description="Maximum sub-questions to generate")
     enable_python: bool = Field(default=True, description="Enable Python analysis")
     enable_world_knowledge: bool = Field(default=True, description="Enable world knowledge enrichment")
+    verbose_mode: bool = Field(default=True, description="Generate comprehensive multi-page analysis")
     generate_infographic: bool = Field(default=False, description="Auto-generate infographic")
     infographic_format: str = Field(default='pdf', description="Infographic format: 'pdf' or 'png'")
     infographic_color_scheme: str = Field(default='professional', description="Color scheme: 'professional', 'modern', or 'corporate'")
@@ -37,14 +38,23 @@ class DeepResearchResponse(BaseModel):
     main_question: str
     direct_answer: str
     key_findings: List[str]
-    supporting_details: List[Dict[str, Any]]  # Changed from Dict to List
+    supporting_details: List[Dict[str, Any]]
     data_coverage: Dict[str, Any]
     follow_up_questions: List[str]
     visualizations: List[Dict[str, Any]]
-    stages_completed: List[str]  # List of stage names
+    stages_completed: List[str]
     execution_time_seconds: float
     error: Optional[str] = None
-    infographic: Optional[Dict[str, Any]] = None  # Added: optional infographic data
+    infographic: Optional[Dict[str, Any]] = None
+
+    # Verbose mode fields
+    executive_summary: Optional[str] = None
+    methodology: Optional[Dict[str, Any]] = None
+    detailed_findings: Optional[List[Dict[str, Any]]] = None
+    cross_analysis: Optional[Dict[str, Any]] = None
+    limitations: Optional[List[str]] = None
+    recommendations: Optional[List[Dict[str, Any]]] = None
+    technical_appendix: Optional[Dict[str, Any]] = None
 
 
 class PlanRequest(BaseModel):
@@ -71,6 +81,7 @@ class ExecutePlanRequest(BaseModel):
     sub_questions: List[Dict[str, Any]] = Field(..., description="User-edited sub-questions")
     enable_python: bool = Field(default=True, description="Enable Python analysis")
     enable_world_knowledge: bool = Field(default=True, description="Enable world knowledge enrichment")
+    verbose_mode: bool = Field(default=True, description="Generate comprehensive multi-page analysis")
     generate_infographic: bool = Field(default=False, description="Auto-generate infographic")
     infographic_format: str = Field(default='pdf', description="Infographic format: 'pdf' or 'png'")
     infographic_color_scheme: str = Field(default='professional', description="Color scheme: 'professional', 'modern', or 'corporate'")
@@ -129,7 +140,8 @@ async def deep_research_analyze(
             dataset_id=request.dataset_id,
             max_sub_questions=request.max_sub_questions,
             enable_python=request.enable_python,
-            enable_world_knowledge=request.enable_world_knowledge
+            enable_world_knowledge=request.enable_world_knowledge,
+            verbose_mode=request.verbose_mode
         )
 
         logger.info(f"Deep research completed in {result.get('execution_time_seconds', 0):.2f}s")
