@@ -36,6 +36,8 @@ interface ChatSidebarProps {
   onInfographicFormatChange?: (format: 'pdf' | 'png') => void
   infographicColorScheme?: 'professional' | 'modern' | 'corporate'
   onInfographicColorSchemeChange?: (scheme: 'professional' | 'modern' | 'corporate') => void
+  infographicGenerationMethod?: 'template' | 'ai'
+  onInfographicGenerationMethodChange?: (method: 'template' | 'ai') => void
 }
 
 export function ChatSidebar({
@@ -51,7 +53,9 @@ export function ChatSidebar({
   infographicFormat = 'pdf',
   onInfographicFormatChange,
   infographicColorScheme = 'professional',
-  onInfographicColorSchemeChange
+  onInfographicColorSchemeChange,
+  infographicGenerationMethod = 'template',
+  onInfographicGenerationMethodChange
 }: ChatSidebarProps) {
   const [input, setInput] = useState('')
   const navigate = useNavigate()
@@ -279,6 +283,20 @@ export function ChatSidebar({
                 <div className="ml-6 space-y-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Generation Method:
+                    </label>
+                    <select
+                      value={infographicGenerationMethod}
+                      onChange={(e) => onInfographicGenerationMethodChange?.(e.target.value as 'template' | 'ai')}
+                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="template">Template (Free, Fast)</option>
+                      <option value="ai">AI-Powered (Gemini Nano Banana Pro, Premium)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
                       Format:
                     </label>
                     <select
@@ -291,20 +309,28 @@ export function ChatSidebar({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Theme:
-                    </label>
-                    <select
-                      value={infographicColorScheme}
-                      onChange={(e) => onInfographicColorSchemeChange?.(e.target.value as 'professional' | 'modern' | 'corporate')}
-                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="professional">Professional (clean blue)</option>
-                      <option value="modern">Modern (dark navy)</option>
-                      <option value="corporate">Corporate (traditional)</option>
-                    </select>
-                  </div>
+                  {infographicGenerationMethod === 'template' && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Theme:
+                      </label>
+                      <select
+                        value={infographicColorScheme}
+                        onChange={(e) => onInfographicColorSchemeChange?.(e.target.value as 'professional' | 'modern' | 'corporate')}
+                        className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="professional">Professional (clean blue)</option>
+                        <option value="modern">Modern (dark navy)</option>
+                        <option value="corporate">Corporate (traditional)</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {infographicGenerationMethod === 'ai' && (
+                    <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                      ⚠️ AI generation uses Gemini Nano Banana Pro and incurs API costs
+                    </div>
+                  )}
                 </div>
               )}
             </div>

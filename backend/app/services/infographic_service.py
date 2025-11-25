@@ -2,20 +2,22 @@
 Infographic Generation Service
 
 Generates professional, enterprise-grade infographics from deep research results
-using template-based approach with reportlab, Pillow, and matplotlib.
+using either template-based approach or AI-powered generation.
 
 Features:
 - PDF generation with professional layouts
 - Data visualizations (charts, graphs)
-- Template-based design system
-- No external API dependencies (enterprise-ready)
+- Template-based design system (no external APIs)
+- AI-powered generation using Gemini Nano Banana Pro (optional, via OpenRouter)
 """
 
 import io
 import base64
+import json
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
+import os
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
@@ -27,6 +29,7 @@ from reportlab.platypus import (
     PageBreak, Image, KeepTogether
 )
 from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 from reportlab.graphics.shapes import Drawing, Rect, String
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.piecharts import Pie
@@ -97,7 +100,8 @@ class InfographicService:
                            research_result: Dict[str, Any],
                            format: str = 'pdf',
                            include_charts: bool = True,
-                           include_visualizations: bool = True) -> Dict[str, Any]:
+                           include_visualizations: bool = True,
+                           generation_method: str = 'template') -> Dict[str, Any]:
         """
         Generate infographic from deep research results
 
@@ -106,21 +110,27 @@ class InfographicService:
             format: 'pdf' or 'png'
             include_charts: Whether to generate summary charts
             include_visualizations: Whether to include existing visualizations
+            generation_method: 'template' (default, free) or 'ai' (Gemini Nano Banana Pro, paid)
 
         Returns:
             Dict with 'data' (base64 encoded), 'format', 'filename'
         """
 
-        if format == 'pdf':
-            return self._generate_pdf_infographic(
-                research_result,
-                include_charts,
-                include_visualizations
-            )
-        elif format == 'png':
-            return self._generate_png_infographic(research_result)
+        if generation_method == 'ai':
+            return self._generate_ai_infographic(research_result, format)
+        elif generation_method == 'template':
+            if format == 'pdf':
+                return self._generate_pdf_infographic(
+                    research_result,
+                    include_charts,
+                    include_visualizations
+                )
+            elif format == 'png':
+                return self._generate_png_infographic(research_result)
+            else:
+                raise ValueError(f"Unsupported format: {format}")
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            raise ValueError(f"Unsupported generation method: {generation_method}")
 
     def _generate_pdf_infographic(self,
                                   research_result: Dict[str, Any],
@@ -562,3 +572,173 @@ class InfographicService:
             'filename': filename,
             'size_bytes': len(png_bytes)
         }
+
+    def _generate_ai_infographic(self, research_result: Dict[str, Any], format: str) -> Dict[str, Any]:
+        """
+        Generate AI-powered infographic using Gemini Nano Banana Pro via OpenRouter
+
+        This method creates professional infographic images using Google's state-of-the-art
+        image generation model. The model excels at creating accurate, data-rich infographics
+        with proper text rendering and visual hierarchy.
+
+        Args:
+            research_result: Deep research results to visualize
+            format: 'pdf' or 'png' (AI generates PNG, optionally converts to PDF)
+
+        Returns:
+            Dict with base64 encoded infographic data
+        """
+        import httpx
+
+        # Get API key
+        api_key = os.getenv('OPENROUTER_API_KEY')
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY not found in environment variables")
+
+        # Prepare research summary for prompt
+        main_question = research_result.get('main_question', 'Research Analysis')
+        direct_answer = research_result.get('direct_answer', '')
+        key_findings = research_result.get('key_findings', [])
+        supporting_details = research_result.get('supporting_details', [])
+
+        # Build detailed prompt for infographic generation
+        findings_text = "\n".join([f"• {f}" for f in key_findings[:8]])  # Top 8 findings
+
+        prompt = f"""Create a professional, elegant infographic summarizing this research analysis.
+
+RESEARCH QUESTION: {main_question}
+
+KEY ANSWER: {direct_answer}
+
+KEY FINDINGS:
+{findings_text}
+
+DESIGN REQUIREMENTS:
+- Clean, modern, professional layout
+- Use data visualization (charts, icons, diagrams) where appropriate
+- Include clear section headers
+- Use a cohesive color scheme (blues, grays, or corporate colors)
+- Make text legible and well-organized
+- Include summary statistics or metrics if applicable
+- 2-page infographic layout that elegantly presents all information
+- Emphasize the most important insights visually
+
+The infographic should be suitable for business/enterprise presentations."""
+
+        # Call OpenRouter API with Gemini Nano Banana Pro
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/yourusername/felix",
+            "X-Title": "Felix AI Analytics Platform"
+        }
+
+        payload = {
+            "model": "google/gemini-3-pro-image-preview",
+            "prompt": prompt,
+            "max_tokens": 1024,
+            "temperature": 0.7,
+            "aspect_ratio": "portrait",  # Good for infographics
+            "num_images": 1
+        }
+
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                response = client.post(
+                    "https://openrouter.ai/api/v1/images/generate",
+                    headers=headers,
+                    json=payload
+                )
+                response.raise_for_status()
+                result = response.json()
+
+            # Extract image data
+            if 'data' in result and len(result['data']) > 0:
+                image_data = result['data'][0]
+
+                # Handle different response formats
+                if 'b64_json' in image_data:
+                    image_base64 = image_data['b64_json']
+                elif 'url' in image_data:
+                    # Download from URL
+                    with httpx.Client() as client:
+                        img_response = client.get(image_data['url'])
+                        img_response.raise_for_status()
+                        image_base64 = base64.b64encode(img_response.content).decode('utf-8')
+                else:
+                    raise ValueError("No image data found in API response")
+
+                # If PDF requested, convert PNG to PDF
+                if format == 'pdf':
+                    image_base64 = self._convert_png_to_pdf(image_base64)
+                    file_format = 'pdf'
+                else:
+                    file_format = 'png'
+
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                filename = f"research_infographic_ai_{timestamp}.{file_format}"
+
+                # Calculate size
+                size_bytes = len(base64.b64decode(image_base64))
+
+                return {
+                    'data': image_base64,
+                    'format': file_format,
+                    'filename': filename,
+                    'size_bytes': size_bytes,
+                    'generation_method': 'ai',
+                    'model': 'google/gemini-3-pro-image-preview'
+                }
+            else:
+                raise ValueError("No image generated by API")
+
+        except httpx.HTTPError as e:
+            raise Exception(f"API request failed: {str(e)}")
+        except Exception as e:
+            raise Exception(f"AI infographic generation failed: {str(e)}")
+
+    def _convert_png_to_pdf(self, png_base64: str) -> str:
+        """Convert PNG image to PDF format"""
+        from reportlab.pdfgen import canvas
+        from PIL import Image as PILImage
+
+        # Decode PNG
+        png_bytes = base64.b64decode(png_base64)
+        img = PILImage.open(io.BytesIO(png_bytes))
+
+        # Create PDF
+        buffer = io.BytesIO()
+
+        # Get image dimensions
+        img_width, img_height = img.size
+
+        # Calculate PDF page size to fit image (maintain aspect ratio)
+        max_width = 8.5 * inch  # Letter width
+        max_height = 11 * inch  # Letter height
+
+        scale = min(max_width / img_width, max_height / img_height)
+        pdf_width = img_width * scale
+        pdf_height = img_height * scale
+
+        # Create canvas
+        c = canvas.Canvas(buffer, pagesize=(pdf_width, pdf_height))
+
+        # Save image to temp buffer
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+
+        # Draw image on PDF
+        c.drawImage(
+            ImageReader(img_buffer),
+            0, 0,
+            width=pdf_width,
+            height=pdf_height
+        )
+
+        c.save()
+        buffer.seek(0)
+
+        # Encode to base64
+        pdf_bytes = buffer.getvalue()
+        return base64.b64encode(pdf_bytes).decode('utf-8')

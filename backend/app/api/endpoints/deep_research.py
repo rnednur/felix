@@ -25,8 +25,9 @@ class DeepResearchRequest(BaseModel):
     enable_python: bool = Field(default=True, description="Enable Python analysis")
     enable_world_knowledge: bool = Field(default=True, description="Enable world knowledge enrichment")
     generate_infographic: bool = Field(default=False, description="Auto-generate infographic")
-    infographic_format: str = Field(default='pdf', description="Infographic format if auto-generating")
-    infographic_color_scheme: str = Field(default='professional', description="Color scheme if auto-generating")
+    infographic_format: str = Field(default='pdf', description="Infographic format: 'pdf' or 'png'")
+    infographic_color_scheme: str = Field(default='professional', description="Color scheme: 'professional', 'modern', or 'corporate'")
+    infographic_generation_method: str = Field(default='template', description="Generation method: 'template' (free) or 'ai' (Gemini Nano Banana Pro, paid)")
 
 
 class DeepResearchResponse(BaseModel):
@@ -70,14 +71,16 @@ class ExecutePlanRequest(BaseModel):
     enable_python: bool = Field(default=True, description="Enable Python analysis")
     enable_world_knowledge: bool = Field(default=True, description="Enable world knowledge enrichment")
     generate_infographic: bool = Field(default=False, description="Auto-generate infographic")
-    infographic_format: str = Field(default='pdf', description="Infographic format if auto-generating")
-    infographic_color_scheme: str = Field(default='professional', description="Color scheme if auto-generating")
+    infographic_format: str = Field(default='pdf', description="Infographic format: 'pdf' or 'png'")
+    infographic_color_scheme: str = Field(default='professional', description="Color scheme: 'professional', 'modern', or 'corporate'")
+    infographic_generation_method: str = Field(default='template', description="Generation method: 'template' (free) or 'ai' (Gemini Nano Banana Pro, paid)")
 
 
 class InfographicRequest(BaseModel):
     """Request for infographic generation"""
     format: str = Field(default='pdf', description="Output format: 'pdf' or 'png'")
     color_scheme: str = Field(default='professional', description="Color scheme: 'professional', 'modern', or 'corporate'")
+    generation_method: str = Field(default='template', description="Generation method: 'template' (free) or 'ai' (Gemini Nano Banana Pro, paid)")
     include_charts: bool = Field(default=True, description="Include summary charts")
     include_visualizations: bool = Field(default=True, description="Include data visualizations")
 
@@ -134,13 +137,14 @@ async def deep_research_analyze(
         infographic_data = None
         if request.generate_infographic:
             try:
-                logger.info("Auto-generating infographic...")
+                logger.info(f"Auto-generating infographic using {request.infographic_generation_method} method...")
                 infographic_service = InfographicService(template=request.infographic_color_scheme)
                 infographic_result = infographic_service.generate_infographic(
                     research_result=result,
                     format=request.infographic_format,
                     include_charts=True,
-                    include_visualizations=True
+                    include_visualizations=True,
+                    generation_method=request.infographic_generation_method
                 )
                 infographic_data = {
                     'data': infographic_result['data'],
@@ -148,6 +152,9 @@ async def deep_research_analyze(
                     'filename': infographic_result['filename'],
                     'size_bytes': infographic_result['size_bytes']
                 }
+                if request.infographic_generation_method == 'ai':
+                    infographic_data['generation_method'] = 'ai'
+                    infographic_data['model'] = 'google/gemini-3-pro-image-preview'
                 logger.info(f"Infographic generated: {infographic_result['filename']}")
             except Exception as e:
                 logger.error(f"Infographic generation failed: {str(e)}", exc_info=True)
@@ -282,7 +289,7 @@ async def generate_infographic(
     """
 
     try:
-        logger.info(f"Generating {infographic_request.format} infographic with {infographic_request.color_scheme} theme")
+        logger.info(f"Generating {infographic_request.format} infographic with {infographic_request.color_scheme} theme using {infographic_request.generation_method} method")
 
         # Initialize infographic service
         infographic_service = InfographicService(template=infographic_request.color_scheme)
@@ -292,7 +299,8 @@ async def generate_infographic(
             research_result=research_result,
             format=infographic_request.format,
             include_charts=infographic_request.include_charts,
-            include_visualizations=infographic_request.include_visualizations
+            include_visualizations=infographic_request.include_visualizations,
+            generation_method=infographic_request.generation_method
         )
 
         logger.info(f"Infographic generated successfully: {result['filename']} ({result['size_bytes']} bytes)")
@@ -349,14 +357,15 @@ async def analyze_with_infographic(
         )
 
         # Step 2: Generate infographic
-        logger.info("Generating infographic from research results")
+        logger.info(f"Generating infographic from research results using {infographic_request.generation_method} method")
 
         infographic_service = InfographicService(template=infographic_request.color_scheme)
         infographic_result = infographic_service.generate_infographic(
             research_result=research_result,
             format=infographic_request.format,
             include_charts=infographic_request.include_charts,
-            include_visualizations=infographic_request.include_visualizations
+            include_visualizations=infographic_request.include_visualizations,
+            generation_method=infographic_request.generation_method
         )
 
         logger.info(f"Analysis complete with infographic: {infographic_result['filename']}")
@@ -601,7 +610,8 @@ async def execute_research_plan(
                     research_result=result_for_infographic,
                     format=request.infographic_format,
                     include_charts=True,
-                    include_visualizations=True
+                    include_visualizations=True,
+                    generation_method=request.infographic_generation_method
                 )
                 infographic_data = {
                     'data': infographic_result['data'],

@@ -51,6 +51,7 @@ export default function DatasetDetail() {
   const [generateInfographic, setGenerateInfographic] = useState(false)
   const [infographicFormat, setInfographicFormat] = useState<'pdf' | 'png'>('pdf')
   const [infographicColorScheme, setInfographicColorScheme] = useState<'professional' | 'modern' | 'corporate'>('professional')
+  const [infographicGenerationMethod, setInfographicGenerationMethod] = useState<'template' | 'ai'>('template')
   const [currentInfographic, setCurrentInfographic] = useState<any>(null)
 
   // Planning flow
@@ -160,7 +161,8 @@ export default function DatasetDetail() {
           enable_world_knowledge: true,
           generate_infographic: generateInfographic,
           infographic_format: infographicFormat,
-          infographic_color_scheme: infographicColorScheme
+          infographic_color_scheme: infographicColorScheme,
+          infographic_generation_method: infographicGenerationMethod
         })
       })
 
@@ -538,6 +540,8 @@ export default function DatasetDetail() {
         onInfographicFormatChange={setInfographicFormat}
         infographicColorScheme={infographicColorScheme}
         onInfographicColorSchemeChange={setInfographicColorScheme}
+        infographicGenerationMethod={infographicGenerationMethod}
+        onInfographicGenerationMethodChange={setInfographicGenerationMethod}
       />
 
       {/* Code Preview Modal */}
