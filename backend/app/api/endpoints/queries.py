@@ -4,7 +4,7 @@ import uuid
 import time
 
 from app.core.database import get_db
-from app.models.dataset import Dataset
+from app.models.dataset import Dataset, DatasetGroup
 from app.models.query import Query, QueryStatus
 from app.schemas.query import NLQueryRequest, SQLQueryRequest, QueryResponse
 from app.services.nl_to_sql_service import NLToSQLService
@@ -20,19 +20,36 @@ async def execute_nl_query(
     db: Session = Depends(get_db)
 ):
     """Natural language to SQL query"""
-    # Verify dataset exists
-    dataset = db.query(Dataset).filter(
-        Dataset.id == request.dataset_id,
-        Dataset.deleted_at.is_(None)
-    ).first()
+    # Validate input
+    if not request.dataset_id and not request.group_id:
+        raise HTTPException(400, "Must specify either dataset_id or group_id")
+    if request.dataset_id and request.group_id:
+        raise HTTPException(400, "Cannot specify both dataset_id and group_id")
 
-    if not dataset:
-        raise HTTPException(404, "Dataset not found")
+    # Verify dataset/group exists
+    if request.dataset_id:
+        dataset = db.query(Dataset).filter(
+            Dataset.id == request.dataset_id,
+            Dataset.deleted_at.is_(None)
+        ).first()
+        if not dataset:
+            raise HTTPException(404, "Dataset not found")
+    else:
+        group = db.query(DatasetGroup).filter(
+            DatasetGroup.id == request.group_id,
+            DatasetGroup.deleted_at.is_(None)
+        ).first()
+        if not group:
+            raise HTTPException(404, "Dataset group not found")
 
     # Generate SQL
     nl_service = NLToSQLService(db)
     try:
-        result = await nl_service.generate_sql(request.query, request.dataset_id)
+        result = await nl_service.generate_sql(
+            request.query,
+            dataset_id=request.dataset_id,
+            group_id=request.group_id
+        )
     except Exception as e:
         raise HTTPException(500, f"Failed to generate SQL: {str(e)}")
 
@@ -42,7 +59,21 @@ async def execute_nl_query(
 
     try:
         start_time = time.time()
-        df = duckdb_service.execute_query(result['sql'], request.dataset_id)
+
+        # Execute based on single dataset or group
+        if request.dataset_id:
+            df = duckdb_service.execute_query(result['sql'], dataset_id=request.dataset_id)
+        else:
+            # Build dataset configs for group query
+            group = db.query(DatasetGroup).filter(DatasetGroup.id == request.group_id).first()
+            dataset_configs = []
+            for membership in sorted(group.memberships, key=lambda m: m.display_order):
+                dataset_configs.append({
+                    'dataset_id': membership.dataset_id,
+                    'alias': membership.alias or membership.dataset.name
+                })
+            df = duckdb_service.execute_query(result['sql'], dataset_configs=dataset_configs)
+
         execution_time_ms = int((time.time() - start_time) * 1000)
 
         # Save query result
@@ -53,6 +84,7 @@ async def execute_nl_query(
         query = Query(
             id=query_id,
             dataset_id=request.dataset_id,
+            group_id=request.group_id,
             nl_input=request.query,
             generated_sql=result['sql'],
             execution_time_ms=execution_time_ms,
@@ -80,6 +112,7 @@ async def execute_nl_query(
         query = Query(
             id=query_id,
             dataset_id=request.dataset_id,
+            group_id=request.group_id,
             nl_input=request.query,
             generated_sql=error_sql,
             status=QueryStatus.FAILED,
@@ -106,21 +139,48 @@ async def execute_sql_query(
     db: Session = Depends(get_db)
 ):
     """Direct SQL execution"""
-    # Verify dataset exists
-    dataset = db.query(Dataset).filter(
-        Dataset.id == request.dataset_id,
-        Dataset.deleted_at.is_(None)
-    ).first()
+    # Validate input
+    if not request.dataset_id and not request.group_id:
+        raise HTTPException(400, "Must specify either dataset_id or group_id")
+    if request.dataset_id and request.group_id:
+        raise HTTPException(400, "Cannot specify both dataset_id and group_id")
 
-    if not dataset:
-        raise HTTPException(404, "Dataset not found")
+    # Verify dataset/group exists
+    if request.dataset_id:
+        dataset = db.query(Dataset).filter(
+            Dataset.id == request.dataset_id,
+            Dataset.deleted_at.is_(None)
+        ).first()
+        if not dataset:
+            raise HTTPException(404, "Dataset not found")
+    else:
+        group = db.query(DatasetGroup).filter(
+            DatasetGroup.id == request.group_id,
+            DatasetGroup.deleted_at.is_(None)
+        ).first()
+        if not group:
+            raise HTTPException(404, "Dataset group not found")
 
     duckdb_service = DuckDBService()
     query_id = str(uuid.uuid4())
 
     try:
         start_time = time.time()
-        df = duckdb_service.execute_query(request.sql, request.dataset_id)
+
+        # Execute based on single dataset or group
+        if request.dataset_id:
+            df = duckdb_service.execute_query(request.sql, dataset_id=request.dataset_id)
+        else:
+            # Build dataset configs for group query
+            group = db.query(DatasetGroup).filter(DatasetGroup.id == request.group_id).first()
+            dataset_configs = []
+            for membership in sorted(group.memberships, key=lambda m: m.display_order):
+                dataset_configs.append({
+                    'dataset_id': membership.dataset_id,
+                    'alias': membership.alias or membership.dataset.name
+                })
+            df = duckdb_service.execute_query(request.sql, dataset_configs=dataset_configs)
+
         execution_time_ms = int((time.time() - start_time) * 1000)
 
         # Save query result
@@ -131,6 +191,7 @@ async def execute_sql_query(
         query = Query(
             id=query_id,
             dataset_id=request.dataset_id,
+            group_id=request.group_id,
             nl_input=None,
             generated_sql=request.sql,
             execution_time_ms=execution_time_ms,
@@ -155,6 +216,7 @@ async def execute_sql_query(
         query = Query(
             id=query_id,
             dataset_id=request.dataset_id,
+            group_id=request.group_id,
             nl_input=None,
             generated_sql=request.sql,
             status=QueryStatus.FAILED,

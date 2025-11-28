@@ -4,12 +4,14 @@ from datetime import datetime
 
 
 class NLQueryRequest(BaseModel):
-    dataset_id: str
+    dataset_id: Optional[str] = None
+    group_id: Optional[str] = None
     query: str
 
 
 class SQLQueryRequest(BaseModel):
-    dataset_id: str
+    dataset_id: Optional[str] = None
+    group_id: Optional[str] = None
     sql: str
 
 

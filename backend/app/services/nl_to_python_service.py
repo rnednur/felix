@@ -71,7 +71,7 @@ class NLToPythonService:
         dataset_id: str,
         mode: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Generate Python code from natural language query"""
+        """Generate Python code from natural language query with retry on errors"""
 
         # Auto-detect mode if not provided
         if mode is None:
@@ -106,23 +106,101 @@ class NLToPythonService:
             print(f"Warning: DuckDB query generation failed: {e}")
             duckdb_query = "SELECT * FROM dataset"  # Fallback - use entire dataset view
 
-        # Build prompt based on mode (now includes DuckDB query)
-        prompt = self.build_python_prompt(nl_query, schema, relevant_cols, mode, duckdb_query)
+        max_retries = 3
+        last_error = None
+        last_error_trace = None
 
-        # Call OpenRouter
-        code = await self.call_openrouter(prompt)
+        for attempt in range(max_retries):
+            try:
+                # Build prompt based on mode (now includes DuckDB query)
+                if attempt == 0:
+                    # First attempt: normal prompt
+                    prompt = self.build_python_prompt(nl_query, schema, relevant_cols, mode, duckdb_query)
+                else:
+                    # Retry with error context
+                    prompt = self.build_retry_prompt(nl_query, schema, relevant_cols, mode, duckdb_query, code, last_error, last_error_trace)
 
-        # Parse workflow steps if applicable
-        steps = self.parse_workflow(code, mode)
+                # Call OpenRouter
+                code = await self.call_openrouter(prompt)
 
+                # Test execution with CodeExecutorService
+                from app.services.code_executor_service import CodeExecutorService
+                executor = CodeExecutorService()
+
+                # Quick validation execution (short timeout)
+                exec_result = executor.execute_python(code, dataset_id, timeout_sec=10)
+
+                if exec_result['status'] != 'SUCCESS':
+                    # Execution failed, prepare for retry
+                    last_error = exec_result.get('error', 'Unknown error')
+                    last_error_trace = exec_result.get('error_trace')
+                    print(f"🔄 Python code attempt {attempt + 1} failed: {last_error}")
+
+                    if attempt == max_retries - 1:
+                        # Final attempt failed - return the code anyway with error info
+                        steps = self.parse_workflow(code, mode)
+                        return {
+                            'code': code,
+                            'mode': mode,
+                            'retrieved_columns': [col['column']['name'] for col in relevant_cols],
+                            'duckdb_query': duckdb_query,
+                            'steps': steps,
+                            'requires_execution': True,
+                            'estimated_runtime': self.estimate_runtime(code, mode),
+                            'validation_error': last_error,
+                            'attempts': max_retries
+                        }
+
+                    # Continue to next retry
+                    continue
+
+                # Success - code executed without errors
+                retry_info = {'attempted': attempt + 1} if attempt > 0 else {}
+                steps = self.parse_workflow(code, mode)
+
+                return {
+                    'code': code,
+                    'mode': mode,
+                    'retrieved_columns': [col['column']['name'] for col in relevant_cols],
+                    'duckdb_query': duckdb_query,
+                    'steps': steps,
+                    'requires_execution': True,
+                    'estimated_runtime': self.estimate_runtime(code, mode),
+                    **retry_info
+                }
+
+            except Exception as e:
+                last_error = str(e)
+                print(f"🔄 Python generation attempt {attempt + 1} failed: {last_error}")
+
+                if attempt == max_retries - 1:
+                    # Final attempt failed - return error
+                    return {
+                        'code': code if 'code' in locals() else None,
+                        'mode': mode,
+                        'retrieved_columns': [col['column']['name'] for col in relevant_cols],
+                        'duckdb_query': duckdb_query,
+                        'steps': [],
+                        'requires_execution': True,
+                        'estimated_runtime': 'Unknown',
+                        'error': last_error,
+                        'attempts': max_retries
+                    }
+
+                # Continue to next retry
+                continue
+
+        # Should never reach here
         return {
-            'code': code,
+            'code': None,
             'mode': mode,
             'retrieved_columns': [col['column']['name'] for col in relevant_cols],
             'duckdb_query': duckdb_query,
-            'steps': steps,
+            'steps': [],
             'requires_execution': True,
-            'estimated_runtime': self.estimate_runtime(code, mode)
+            'estimated_runtime': 'Unknown',
+            'error': 'Max retries exceeded',
+            'attempts': max_retries
         }
 
     def build_python_prompt(
@@ -207,6 +285,85 @@ Generate only the Python code, no markdown formatting or explanations outside co
 
 Python Code:"""
 
+    def build_retry_prompt(
+        self,
+        nl_query: str,
+        schema: dict,
+        relevant_cols: list,
+        mode: str,
+        duckdb_query: str,
+        failed_code: str,
+        error: str,
+        error_trace: Optional[str] = None
+    ) -> str:
+        """Build retry prompt with error context for Python code correction"""
+
+        # Format relevant columns
+        cols_info = []
+        for item in relevant_cols:
+            col = item['column']
+            col_desc = f"- \"{col['name']}\" ({col['dtype']})"
+
+            if 'stats' in col:
+                if 'top_values' in col['stats']:
+                    examples = [v[0] for v in col['stats']['top_values'][:3]]
+                    col_desc += f" - examples: {examples}"
+                elif 'min' in col['stats'] and 'max' in col['stats']:
+                    col_desc += f" - range: {col['stats']['min']} to {col['stats']['max']}"
+            cols_info.append(col_desc)
+
+        # Mode-specific instructions
+        mode_instructions = self.get_mode_instructions(mode)
+
+        error_context = f"""
+ERROR MESSAGE:
+{error}
+
+{f'STACK TRACE:{error_trace}' if error_trace else ''}
+"""
+
+        return f"""You are a Python data analysis expert. The following Python code FAILED with an error. Fix it.
+
+Dataset Schema (most relevant columns):
+{chr(10).join(cols_info)}
+
+All available columns:
+{', '.join([f'"{c["name"]}"' for c in schema['columns']])}
+
+User Request: {nl_query}
+
+{mode_instructions}
+
+PREVIOUS FAILED CODE:
+```python
+{failed_code}
+```
+
+{error_context}
+
+Fix the code to address the error. Common issues:
+- Column names case sensitivity
+- Missing data handling (NaN values)
+- Type conversions (str to numeric, etc.)
+- Library imports
+- Variable name typos
+- DuckDB query syntax errors
+
+CRITICAL REQUIREMENTS:
+1. Load data efficiently using DuckDB:
+   ```python
+   df = duckdb_conn.execute("{duckdb_query}").df()
+   ```
+2. Store final output in 'result' variable (JSON-serializable)
+3. Use only: pandas, numpy, scikit-learn, scipy, statsmodels, matplotlib, seaborn, duckdb
+4. Handle missing values and errors gracefully
+5. For visualizations, save as base64-encoded PNG in result['visualizations']
+6. Return result format: {{'summary': '...', 'data': [...], 'metrics': {{}}, 'visualizations': []}}
+
+Generate only the fixed Python code, no markdown formatting or explanations outside comments.
+
+FIXED Python Code:"""
+
     def get_mode_instructions(self, mode: str) -> str:
         """Get mode-specific instructions for prompt"""
 
@@ -216,10 +373,36 @@ Python Code:"""
 Required steps:
 1. Feature selection and preprocessing
 2. Train/test split (80/20)
-3. Model training (choose appropriate algorithm)
+3. Model training - choose ONE of these based on data type:
+   - REGRESSION (numeric target): RandomForestRegressor or XGBRegressor
+   - CLASSIFICATION (categorical target): RandomForestClassifier or XGBClassifier
+   - TIME SERIES: Use ARIMA or Prophet for forecasting
 4. Model evaluation (metrics: R², RMSE for regression; accuracy, precision, recall for classification)
 5. Feature importance (if applicable)
 6. Prediction examples
+
+Common model templates:
+```python
+# Regression example
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+```
+
+```python
+# Classification example
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+```
 
 Store trained model in 'model' variable for potential saving."""
 

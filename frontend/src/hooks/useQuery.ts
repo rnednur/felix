@@ -3,14 +3,14 @@ import { executeNLQuery, executeSQLQuery } from '@/services/api'
 
 export function useNLQuery() {
   return useMutation({
-    mutationFn: ({ datasetId, query }: { datasetId: string; query: string }) =>
-      executeNLQuery(datasetId, query),
+    mutationFn: ({ query, datasetId, groupId }: { query: string; datasetId?: string; groupId?: string }) =>
+      executeNLQuery(query, { datasetId, groupId }),
   })
 }
 
 export function useSQLQuery() {
   return useMutation({
-    mutationFn: ({ datasetId, sql }: { datasetId: string; sql: string }) =>
-      executeSQLQuery(datasetId, sql),
+    mutationFn: ({ sql, datasetId, groupId }: { sql: string; datasetId?: string; groupId?: string }) =>
+      executeSQLQuery(sql, { datasetId, groupId }),
   })
 }

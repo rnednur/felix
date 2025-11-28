@@ -72,3 +72,41 @@ class DatasetVersion(Base):
 
     # Relationships
     dataset = relationship("Dataset", back_populates="versions")
+
+
+class DatasetGroup(Base):
+    __tablename__ = "dataset_groups"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    memberships = relationship("DatasetGroupMembership", back_populates="group")
+    queries = relationship("Query", back_populates="group")
+
+
+class DatasetGroupMembership(Base):
+    __tablename__ = "dataset_group_memberships"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String, ForeignKey("dataset_groups.id"), nullable=False)
+    dataset_id = Column(String, ForeignKey("datasets.id"), nullable=False)
+
+    # Alias for this dataset in the group (e.g., "sales", "customers")
+    alias = Column(String, nullable=True)
+
+    # Order for display purposes
+    display_order = Column(Integer, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    group = relationship("DatasetGroup", back_populates="memberships")
+    dataset = relationship("Dataset")

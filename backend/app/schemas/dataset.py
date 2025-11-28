@@ -44,3 +44,55 @@ class SchemaResponse(BaseModel):
     columns: List[SchemaColumn]
     computed_at: str
     total_rows: int
+
+
+# Dataset Group Schemas
+class DatasetGroupCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class DatasetGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class DatasetGroupMembershipCreate(BaseModel):
+    dataset_id: str
+    alias: Optional[str] = None
+    display_order: Optional[int] = 0
+
+
+class DatasetGroupMembershipResponse(BaseModel):
+    id: str
+    dataset_id: str
+    alias: Optional[str]
+    display_order: int
+    dataset: DatasetResponse
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetGroupResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    memberships: List[DatasetGroupMembershipResponse]
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetGroupListResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    dataset_count: int
+
+    class Config:
+        from_attributes = True

@@ -1,5 +1,13 @@
 -- Initial database schema for AI Analytics Platform
 -- Run this if you prefer SQL migrations over Python setup script
+--
+-- Usage with custom schema:
+--   psql -v schema_name=myapp -f 001_initial_schema.sql
+-- Usage with default schema (public):
+--   psql -f 001_initial_schema.sql
+
+-- Set schema (defaults to public if not provided)
+SET search_path TO :schema_name, public;
 
 -- Datasets table
 CREATE TABLE IF NOT EXISTS datasets (

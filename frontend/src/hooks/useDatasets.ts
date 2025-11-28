@@ -1,5 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { uploadDataset, getDataset, listDatasets, getDatasetPreview, getDatasetSchema } from '@/services/api'
+import {
+  uploadDataset,
+  getDataset,
+  listDatasets,
+  getDatasetPreview,
+  getDatasetSchema,
+  deleteDataset,
+} from '@/services/api'
 
 export function useDatasets() {
   return useQuery({
@@ -37,6 +44,17 @@ export function useUploadDataset() {
 
   return useMutation({
     mutationFn: uploadDataset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['datasets'] })
+    },
+  })
+}
+
+export function useDeleteDataset() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteDataset,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['datasets'] })
     },

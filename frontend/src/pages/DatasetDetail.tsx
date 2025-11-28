@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useDataset, useDatasetPreview, useDatasetSchema } from '@/hooks/useDatasets'
 import { useNLQuery } from '@/hooks/useQuery'
 import { useVisualizationSuggestions } from '@/hooks/useVisualization'
@@ -12,9 +12,11 @@ import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
 import { PlanEditor } from '@/components/research/PlanEditor'
+import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText } from 'lucide-react'
+import { IconButton } from '@/components/ui/icon-button'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History } from 'lucide-react'
 import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult } from '@/services/api'
 
 interface Message {
@@ -26,9 +28,17 @@ interface Message {
 
 export default function DatasetDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { data: dataset } = useDataset(id!)
   const { data: preview } = useDatasetPreview(id!)
   const { data: schema } = useDatasetSchema(id!)
+
+  // Save the current dataset ID to localStorage for "back" navigation
+  useEffect(() => {
+    if (id) {
+      localStorage.setItem('lastViewedDatasetId', id)
+    }
+  }, [id])
   const [messages, setMessages] = useState<Message[]>([])
   const [currentView, setCurrentView] = useState<'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report'>('spreadsheet')
   const [queryResult, setQueryResult] = useState<any>(null)
@@ -60,6 +70,9 @@ export default function DatasetDetail() {
   // Planning flow
   const [showPlanEditor, setShowPlanEditor] = useState(false)
   const [currentPlan, setCurrentPlan] = useState<any>(null)
+
+  // Research history
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
 
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
@@ -591,43 +604,75 @@ export default function DatasetDetail() {
         </div>
       )}
 
+      {/* Research History Modal */}
+      <ResearchHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        datasetId={id!}
+        onLoadResearch={(report) => {
+          setDeepResearchReport(report)
+          setCurrentView('report')
+        }}
+      />
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Bar */}
         <div className="border-b border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">{dataset.name}</h2>
-              <p className="text-sm text-gray-500">
-                {dataset.row_count.toLocaleString()} rows • {dataset.source_type}
-              </p>
+            <div className="flex items-center gap-3">
+              <IconButton
+                variant="ghost"
+                size="md"
+                tooltip="Back to Dataset Hub"
+                onClick={() => navigate('/')}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </IconButton>
+              <div>
+                <h2 className="text-xl font-semibold">{dataset.name}</h2>
+                <p className="text-sm text-gray-500">
+                  {dataset.row_count.toLocaleString()} rows • {dataset.source_type}
+                </p>
+              </div>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
+              <IconButton
+                variant="default"
+                size="md"
+                tooltip="Describe Dataset"
                 onClick={async () => {
                   const description = await describeDataset(id!)
                   setOverviewData(description)
                   setShowOverviewModal(true)
                 }}
               >
-                <Info className="h-4 w-4 mr-2" />
-                Describe Dataset
-              </Button>
-              <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => window.location.href = '/'}
+                <Info className="h-5 w-5" />
+              </IconButton>
+              <IconButton
+                variant="default"
+                size="md"
+                tooltip="Research History"
+                onClick={() => setShowHistoryModal(true)}
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Dataset
-              </Button>
-              <Button
-                variant="outline"
+                <History className="h-5 w-5" />
+              </IconButton>
+              <IconButton
+                variant="primary"
+                size="md"
+                tooltip="Upload Dataset"
+                onClick={() => navigate('/')}
+              >
+                <Upload className="h-5 w-5" />
+              </IconButton>
+              <IconButton
+                variant="default"
+                size="md"
+                tooltip="Settings"
                 onClick={() => setShowSettingsPanel(true)}
               >
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </Button>
+                <Settings className="h-5 w-5" />
+              </IconButton>
             </div>
           </div>
         </div>

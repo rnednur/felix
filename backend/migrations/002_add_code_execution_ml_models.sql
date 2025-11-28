@@ -1,5 +1,13 @@
 -- Migration: Add code execution and ML models support
 -- Created: 2025-11-10
+--
+-- Usage with custom schema:
+--   psql -v schema_name=myapp -f 002_add_code_execution_ml_models.sql
+-- Usage with default schema (public):
+--   psql -f 002_add_code_execution_ml_models.sql
+
+-- Set schema (defaults to public if not provided)
+SET search_path TO :schema_name, public;
 
 -- Create enum types for code execution
 CREATE TYPE execution_mode AS ENUM ('sql', 'python', 'ml', 'workflow', 'stats');

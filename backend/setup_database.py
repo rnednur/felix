@@ -9,10 +9,13 @@ from app.core.database import engine, Base
 from app.models import (
     Dataset,
     DatasetVersion,
+    DatasetGroup,
+    DatasetGroupMembership,
     Query,
     Visualization,
     SemanticMetric,
     AuditLog,
+    ResearchJob,
 )
 from app.models.column_metadata import ColumnMetadata, QueryRule
 
@@ -64,6 +67,54 @@ def create_database():
     conn.close()
 
 
+def create_schema():
+    """Create database schema if specified"""
+    if settings.DB_SCHEMA:
+        print(f"\nChecking schema '{settings.DB_SCHEMA}'...")
+
+        # Parse DATABASE_URL to get connection params
+        url_parts = settings.DATABASE_URL.replace('postgresql://', '').split('@')
+        user_pass = url_parts[0].split(':')
+        host_port_db = url_parts[1].split('/')
+        host_port = host_port_db[0].split(':')
+
+        user = user_pass[0]
+        password = user_pass[1] if len(user_pass) > 1 else ''
+        host = host_port[0]
+        port = host_port[1] if len(host_port) > 1 else '5432'
+        dbname = host_port_db[1].split('?')[0]
+
+        # Connect to the database
+        conn = psycopg2.connect(
+            user=user,
+            password=password,
+            host=host,
+            port=port,
+            database=dbname
+        )
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        cursor = conn.cursor()
+
+        # Check if schema exists
+        cursor.execute(
+            "SELECT 1 FROM information_schema.schemata WHERE schema_name = %s",
+            (settings.DB_SCHEMA,)
+        )
+        exists = cursor.fetchone()
+
+        if not exists:
+            print(f"Creating schema '{settings.DB_SCHEMA}'...")
+            cursor.execute(f'CREATE SCHEMA {settings.DB_SCHEMA}')
+            print(f"Schema '{settings.DB_SCHEMA}' created successfully!")
+        else:
+            print(f"Schema '{settings.DB_SCHEMA}' already exists.")
+
+        cursor.close()
+        conn.close()
+    else:
+        print("\nNo schema specified, using default (public)")
+
+
 def create_tables():
     """Create all tables"""
     print("\nCreating tables...")
@@ -73,7 +124,8 @@ def create_tables():
     # Print created tables
     print("\nCreated tables:")
     for table in Base.metadata.sorted_tables:
-        print(f"  - {table.name}")
+        schema_prefix = f"{table.schema}." if table.schema else ""
+        print(f"  - {schema_prefix}{table.name}")
 
 
 def main():
@@ -83,6 +135,7 @@ def main():
 
     try:
         create_database()
+        create_schema()
         create_tables()
 
         print("\n" + "=" * 60)
