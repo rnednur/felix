@@ -232,18 +232,18 @@ export default function DatasetGroupDetail() {
             </div>
           </div>
         ) : (
-          <>
-        {/* Chat Sidebar - LEFT SIDE */}
-        <ChatSidebar
-          datasetId={id}
-          messages={messages}
-          onQuerySubmit={handleMessage}
-          analysisMode={analysisMode}
-          onModeChange={setAnalysisMode}
-          isLoading={nlQueryMutation.isPending || isExecuting || isGeneratingCode}
-          verboseMode={verboseMode}
-          onVerboseModeToggle={setVerboseMode}
-        />
+          <div className="flex flex-1 overflow-hidden">
+            {/* Chat Sidebar - LEFT SIDE */}
+            <ChatSidebar
+              datasetId={id}
+              messages={messages}
+              onQuerySubmit={handleMessage}
+              analysisMode={analysisMode}
+              onModeChange={setAnalysisMode}
+              isLoading={nlQueryMutation.isPending || isExecuting || isGeneratingCode}
+              verboseMode={verboseMode}
+              onVerboseModeToggle={setVerboseMode}
+            />
 
         {/* Canvas - RIGHT SIDE */}
         <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
@@ -314,7 +314,7 @@ export default function DatasetGroupDetail() {
             </div>
           </Tabs>
         </div>
-        </>
+          </div>
         )}
       </div>
     </div>
