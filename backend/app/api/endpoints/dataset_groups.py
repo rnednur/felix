@@ -250,6 +250,7 @@ async def get_group_preview(group_id: str, db: Session = Depends(get_db)):
     """Get preview data for all datasets in a group"""
     from app.services.storage_service import StorageService
     import pandas as pd
+    import numpy as np
 
     group = db.query(DatasetGroup).filter(
         DatasetGroup.id == group_id,
@@ -270,6 +271,10 @@ async def get_group_preview(group_id: str, db: Session = Depends(get_db)):
             # Load first 100 rows
             df = pd.read_parquet(membership.dataset.parquet_path, engine='pyarrow')
             preview_df = df.head(100)
+
+            # Replace NaN, inf, -inf with None for JSON serialization
+            preview_df = preview_df.replace([np.inf, -np.inf], None)
+            preview_df = preview_df.where(pd.notna(preview_df), None)
 
             previews.append({
                 "dataset_id": membership.dataset_id,
