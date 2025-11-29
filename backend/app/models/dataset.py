@@ -110,3 +110,30 @@ class DatasetGroupMembership(Base):
     # Relationships
     group = relationship("DatasetGroup", back_populates="memberships")
     dataset = relationship("Dataset")
+
+
+class DatasetGroupRelationship(Base):
+    __tablename__ = "dataset_group_relationships"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String, ForeignKey("dataset_groups.id"), nullable=False)
+
+    # From table/column
+    from_dataset_id = Column(String, ForeignKey("datasets.id"), nullable=False)
+    from_column = Column(String, nullable=False)
+
+    # To table/column
+    to_dataset_id = Column(String, ForeignKey("datasets.id"), nullable=False)
+    to_column = Column(String, nullable=False)
+
+    # JOIN type
+    join_type = Column(String, default="INNER", nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    group = relationship("DatasetGroup")
+    from_dataset = relationship("Dataset", foreign_keys=[from_dataset_id])
+    to_dataset = relationship("Dataset", foreign_keys=[to_dataset_id])

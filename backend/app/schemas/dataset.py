@@ -96,3 +96,27 @@ class DatasetGroupListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Relationship Schemas
+class DatasetGroupRelationshipCreate(BaseModel):
+    from_dataset_id: str
+    from_column: str
+    to_dataset_id: str
+    to_column: str
+    join_type: str = "INNER"
+
+
+class DatasetGroupRelationshipResponse(BaseModel):
+    id: str
+    group_id: str
+    from_dataset_id: str
+    from_column: str
+    to_dataset_id: str
+    to_column: str
+    join_type: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

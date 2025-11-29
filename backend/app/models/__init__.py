@@ -1,4 +1,4 @@
-from app.models.dataset import Dataset, DatasetVersion, DatasetGroup, DatasetGroupMembership
+from app.models.dataset import Dataset, DatasetVersion, DatasetGroup, DatasetGroupMembership, DatasetGroupRelationship
 from app.models.query import Query
 from app.models.visualization import Visualization
 from app.models.semantic import SemanticMetric
@@ -11,6 +11,7 @@ __all__ = [
     "DatasetVersion",
     "DatasetGroup",
     "DatasetGroupMembership",
+    "DatasetGroupRelationship",
     "Query",
     "Visualization",
     "SemanticMetric",
