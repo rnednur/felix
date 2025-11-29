@@ -56,7 +56,9 @@ export default function DatasetGroupDetail() {
       insights.push(`\n📊 Used tables: **${result.datasets_used.join(', ')}**`)
     }
 
-    insights.push('\n\nView results in the **Spreadsheet** or **Dashboard** tabs.')
+    if (result.sql) {
+      insights.push(`\n💡 View the SQL and visualizations in the **Dashboard** tab.`)
+    }
 
     return insights.join('\n')
   }
@@ -78,7 +80,7 @@ export default function DatasetGroupDetail() {
         const responseText = generateInsights(result, content)
         setMessages((prev) => [...prev, { role: 'assistant', content: responseText }])
 
-        setCurrentView('spreadsheet')
+        setCurrentView('dashboard')
       } catch (err: any) {
         const errorMessage = err?.response?.data?.detail || err.message || 'Query failed'
         setMessages((prev) => [
@@ -139,7 +141,7 @@ export default function DatasetGroupDetail() {
         const responseText = generateInsights(result, content)
         setMessages((prev) => [...prev, { role: 'assistant', content: responseText }])
 
-        setCurrentView('spreadsheet')
+        setCurrentView('dashboard')
       } catch (err: any) {
         const errorMessage = err?.response?.data?.detail || err.message || 'Query failed'
         setMessages((prev) => [
@@ -178,52 +180,65 @@ export default function DatasetGroupDetail() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {group?.name || 'Dataset Group'}
-              </h1>
-              {group?.description && (
-                <p className="text-sm text-gray-600">{group.description}</p>
-              )}
-              {group?.memberships && (
-                <p className="text-xs text-gray-500 mt-1">
-                  {group.memberships.length} dataset{group.memberships.length !== 1 ? 's' : ''} • Multi-table analysis
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowManager(!showManager)}
-              className="px-3 py-2 text-sm border rounded hover:bg-gray-50"
-            >
-              {showManager ? 'Hide Manager' : 'Manage Datasets'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Manager Section (Collapsible) */}
-      {showManager && (
-        <div className="bg-gray-50 border-b border-gray-200 p-6">
-          <DatasetGroupManager />
-        </div>
+    <div className="flex h-screen bg-white overflow-hidden">
+      {/* Chat Sidebar - LEFT SIDE */}
+      {!isNewGroup && (
+        <ChatSidebar
+          datasetId={id}
+          messages={messages}
+          onQuerySubmit={handleMessage}
+          analysisMode={analysisMode}
+          onModeChange={setAnalysisMode}
+          isLoading={nlQueryMutation.isPending || isExecuting || isGeneratingCode}
+          verboseMode={verboseMode}
+          onVerboseModeToggle={setVerboseMode}
+        />
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main Content - RIGHT SIDE */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Header */}
+        <div className="border-b border-gray-200 bg-white p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+              <div>
+                <h2 className="text-xl font-semibold">{group?.name || 'Dataset Group'}</h2>
+                {group?.description && (
+                  <p className="text-sm text-gray-500">{group.description}</p>
+                )}
+                {group?.memberships && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {group.memberships.length} dataset{group.memberships.length !== 1 ? 's' : ''} • Multi-table analysis
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowManager(!showManager)}
+                className="px-3 py-2 text-sm border rounded hover:bg-gray-50"
+              >
+                {showManager ? 'Hide Manager' : 'Manage Datasets'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Manager Section (Collapsible) */}
+        {showManager && (
+          <div className="bg-gray-50 border-b border-gray-200 p-6">
+            <DatasetGroupManager />
+          </div>
+        )}
+
+        {/* Content Area */}
         {isNewGroup ? (
           <div className="flex-1 flex items-center justify-center bg-gray-50">
             <div className="text-center">
@@ -232,89 +247,80 @@ export default function DatasetGroupDetail() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-1 overflow-hidden">
-            {/* Chat Sidebar - LEFT SIDE */}
-            <ChatSidebar
-              datasetId={id}
-              messages={messages}
-              onQuerySubmit={handleMessage}
-              analysisMode={analysisMode}
-              onModeChange={setAnalysisMode}
-              isLoading={nlQueryMutation.isPending || isExecuting || isGeneratingCode}
-              verboseMode={verboseMode}
-              onVerboseModeToggle={setVerboseMode}
-            />
-
-        {/* Canvas - RIGHT SIDE */}
-        <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
-          <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="h-full flex flex-col">
+          <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden">
             {/* Tab List */}
-            <div className="bg-white border-b border-gray-200 px-6">
-              <TabsList className="h-12">
-                <TabsTrigger value="preview" className="flex items-center gap-2">
-                  <Database className="w-4 h-4" />
+            <div className="border-b border-gray-200 bg-gray-50 px-4">
+              <TabsList className="bg-transparent">
+                <TabsTrigger value="preview" className="gap-2">
+                  <Database className="h-4 w-4" />
                   Preview
                 </TabsTrigger>
-                <TabsTrigger value="schema" className="flex items-center gap-2">
-                  <Table2 className="w-4 h-4" />
+                <TabsTrigger value="schema" className="gap-2">
+                  <Table2 className="h-4 w-4" />
                   Schema
                 </TabsTrigger>
-                <TabsTrigger value="spreadsheet" className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4" />
+                <TabsTrigger value="spreadsheet" className="gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
                   Query Results
                 </TabsTrigger>
-                <TabsTrigger value="dashboard" className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4" />
+                <TabsTrigger value="dashboard" className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
                   Dashboard
+                  {queryResult && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                      {queryResult.total_rows}
+                    </span>
+                  )}
                 </TabsTrigger>
-                <TabsTrigger value="report" className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
+                <TabsTrigger value="report" className="gap-2">
+                  <FileText className="h-4 w-4" />
                   Report
+                  {deepResearchReport && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                      New
+                    </span>
+                  )}
                 </TabsTrigger>
               </TabsList>
             </div>
 
             {/* Tab Content */}
-            <div className="flex-1 overflow-hidden">
-              <TabsContent value="preview" className="h-full m-0">
-                {previewsLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-gray-500">Loading preview...</div>
-                  </div>
-                ) : previews && previews.length > 0 ? (
-                  <GroupDataPreview previews={previews} />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    No preview data available. Add datasets to this group.
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="schema" className="h-full m-0">
-                {schemasLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-gray-500">Loading schemas...</div>
-                  </div>
-                ) : schemas && schemas.length > 0 ? (
-                  <GroupSchemaView schemas={schemas} />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    No schemas available. Add datasets to this group.
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="spreadsheet" className="h-full p-6 m-0">
-                <SpreadsheetView data={prepareSpreadsheetData()} />
-              </TabsContent>
-              <TabsContent value="dashboard" className="h-full m-0 overflow-auto">
-                <DashboardView queryResult={prepareDashboardData()} charts={charts} />
-              </TabsContent>
-              <TabsContent value="report" className="h-full p-6 m-0">
-                <ReportView report={deepResearchReport} />
-              </TabsContent>
-            </div>
+            <TabsContent value="preview" className="flex-1 m-0 overflow-auto">
+              {previewsLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-gray-500">Loading preview...</div>
+                </div>
+              ) : previews && previews.length > 0 ? (
+                <GroupDataPreview previews={previews} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  No preview data available. Add datasets to this group.
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="schema" className="flex-1 m-0 overflow-auto">
+              {schemasLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-gray-500">Loading schemas...</div>
+                </div>
+              ) : schemas && schemas.length > 0 ? (
+                <GroupSchemaView schemas={schemas} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  No schemas available. Add datasets to this group.
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="spreadsheet" className="flex-1 m-0 p-6 overflow-auto">
+              <SpreadsheetView data={prepareSpreadsheetData()} />
+            </TabsContent>
+            <TabsContent value="dashboard" className="flex-1 m-0 overflow-auto">
+              <DashboardView queryResult={prepareDashboardData()} charts={charts} />
+            </TabsContent>
+            <TabsContent value="report" className="flex-1 m-0 overflow-auto">
+              <ReportView report={deepResearchReport} />
+            </TabsContent>
           </Tabs>
-        </div>
-          </div>
         )}
       </div>
     </div>
