@@ -166,7 +166,7 @@ export default function DatasetGroupDetail() {
 
   const prepareDashboardData = () => {
     if (!queryResult || !queryResult.rows || queryResult.rows.length === 0) {
-      return null
+      return undefined
     }
 
     const columns = Object.keys(queryResult.rows[0])
