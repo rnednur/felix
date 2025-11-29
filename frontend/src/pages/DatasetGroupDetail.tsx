@@ -4,6 +4,7 @@ import { ArrowLeft, FileSpreadsheet, BarChart3, Table2, FileText, Database } fro
 import { DatasetGroupManager } from '@/components/datasets/DatasetGroupManager'
 import { useDatasetGroup, useDatasetGroupSchemas, useDatasetGroupPreview } from '@/hooks/useDatasetGroups'
 import { useNLQuery } from '@/hooks/useQuery'
+import { useVisualizationSuggestions } from '@/hooks/useVisualization'
 import { ChatSidebar, type AnalysisMode } from '@/components/chat/ChatSidebar'
 import { SpreadsheetView } from '@/components/canvas/SpreadsheetView'
 import { DashboardView } from '@/components/canvas/DashboardView'
@@ -41,6 +42,8 @@ export default function DatasetGroupDetail() {
   const [verboseMode, setVerboseMode] = useState(true)
 
   const nlQueryMutation = useNLQuery()
+  const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
+  const charts = vizSuggestions?.suggestions || []
 
   const generateInsights = (result: any, originalQuery: string): string => {
     const { rows, total_rows } = result
@@ -156,6 +159,21 @@ export default function DatasetGroupDetail() {
     return {
       columns,
       rows: queryResult.rows
+    }
+  }
+
+  const prepareDashboardData = () => {
+    if (!queryResult || !queryResult.rows || queryResult.rows.length === 0) {
+      return null
+    }
+
+    const columns = Object.keys(queryResult.rows[0])
+    return {
+      columns,
+      rows: queryResult.rows,
+      sql: queryResult.sql,
+      execution_time_ms: queryResult.execution_time_ms,
+      total_rows: queryResult.total_rows
     }
   }
 
@@ -275,8 +293,8 @@ export default function DatasetGroupDetail() {
               <TabsContent value="spreadsheet" className="h-full p-6 m-0">
                 <SpreadsheetView data={prepareSpreadsheetData()} />
               </TabsContent>
-              <TabsContent value="dashboard" className="h-full p-6 m-0">
-                <DashboardView queryResult={queryResult} />
+              <TabsContent value="dashboard" className="h-full m-0 overflow-auto">
+                <DashboardView queryResult={prepareDashboardData()} charts={charts} />
               </TabsContent>
               <TabsContent value="report" className="h-full p-6 m-0">
                 <ReportView report={deepResearchReport} />
