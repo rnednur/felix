@@ -7,6 +7,8 @@ import {
   deleteDatasetGroup,
   addDatasetToGroup,
   removeDatasetFromGroup,
+  getDatasetGroupSchemas,
+  getDatasetGroupPreview,
 } from '@/services/api'
 
 export function useDatasetGroups() {
@@ -84,5 +86,21 @@ export function useRemoveDatasetFromGroup() {
       queryClient.invalidateQueries({ queryKey: ['dataset-group', variables.groupId] })
       queryClient.invalidateQueries({ queryKey: ['dataset-groups'] })
     },
+  })
+}
+
+export function useDatasetGroupSchemas(groupId: string | undefined) {
+  return useQuery({
+    queryKey: ['dataset-group-schemas', groupId],
+    queryFn: () => getDatasetGroupSchemas(groupId!),
+    enabled: !!groupId,
+  })
+}
+
+export function useDatasetGroupPreview(groupId: string | undefined) {
+  return useQuery({
+    queryKey: ['dataset-group-preview', groupId],
+    queryFn: () => getDatasetGroupPreview(groupId!),
+    enabled: !!groupId,
   })
 }

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileSpreadsheet, BarChart3, Table2, FileText } from 'lucide-react'
+import { ArrowLeft, FileSpreadsheet, BarChart3, Table2, FileText, Database } from 'lucide-react'
 import { DatasetGroupManager } from '@/components/datasets/DatasetGroupManager'
-import { useDatasetGroup } from '@/hooks/useDatasetGroups'
+import { useDatasetGroup, useDatasetGroupSchemas, useDatasetGroupPreview } from '@/hooks/useDatasetGroups'
 import { useNLQuery } from '@/hooks/useQuery'
 import { ChatSidebar, type AnalysisMode } from '@/components/chat/ChatSidebar'
 import { SpreadsheetView } from '@/components/canvas/SpreadsheetView'
 import { DashboardView } from '@/components/canvas/DashboardView'
 import { ReportView } from '@/components/canvas/ReportView'
+import { GroupSchemaView } from '@/components/canvas/GroupSchemaView'
+import { GroupDataPreview } from '@/components/canvas/GroupDataPreview'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { IconButton } from '@/components/ui/icon-button'
 import { generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult } from '@/services/api'
@@ -23,12 +25,14 @@ export default function DatasetGroupDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: group } = useDatasetGroup(id === 'new' ? undefined : id)
+  const { data: schemas, isLoading: schemasLoading } = useDatasetGroupSchemas(id === 'new' ? undefined : id)
+  const { data: previews, isLoading: previewsLoading } = useDatasetGroupPreview(id === 'new' ? undefined : id)
 
   // If it's a new group page, always show manager
   const isNewGroup = id === 'new'
-  const [showManager, setShowManager] = useState(true)
+  const [showManager, setShowManager] = useState(false)  // Start collapsed
   const [messages, setMessages] = useState<Message[]>([])
-  const [currentView, setCurrentView] = useState<'spreadsheet' | 'dashboard' | 'report'>('spreadsheet')
+  const [currentView, setCurrentView] = useState<'preview' | 'spreadsheet' | 'schema' | 'dashboard' | 'report'>('preview')
   const [queryResult, setQueryResult] = useState<any>(null)
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('auto')
   const [isExecuting, setIsExecuting] = useState(false)
@@ -217,9 +221,17 @@ export default function DatasetGroupDetail() {
             {/* Tab List */}
             <div className="bg-white border-b border-gray-200 px-6">
               <TabsList className="h-12">
+                <TabsTrigger value="preview" className="flex items-center gap-2">
+                  <Database className="w-4 h-4" />
+                  Preview
+                </TabsTrigger>
+                <TabsTrigger value="schema" className="flex items-center gap-2">
+                  <Table2 className="w-4 h-4" />
+                  Schema
+                </TabsTrigger>
                 <TabsTrigger value="spreadsheet" className="flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4" />
-                  Spreadsheet
+                  Query Results
                 </TabsTrigger>
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" />
@@ -234,6 +246,32 @@ export default function DatasetGroupDetail() {
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
+              <TabsContent value="preview" className="h-full m-0">
+                {previewsLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-gray-500">Loading preview...</div>
+                  </div>
+                ) : previews && previews.length > 0 ? (
+                  <GroupDataPreview previews={previews} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    No preview data available. Add datasets to this group.
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="schema" className="h-full m-0">
+                {schemasLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-gray-500">Loading schemas...</div>
+                  </div>
+                ) : schemas && schemas.length > 0 ? (
+                  <GroupSchemaView schemas={schemas} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    No schemas available. Add datasets to this group.
+                  </div>
+                )}
+              </TabsContent>
               <TabsContent value="spreadsheet" className="h-full p-6 m-0">
                 <SpreadsheetView data={prepareSpreadsheetData()} />
               </TabsContent>

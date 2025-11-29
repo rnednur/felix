@@ -174,6 +174,16 @@ export const removeDatasetFromGroup = async (
   await api.delete(`/dataset-groups/${groupId}/datasets/${datasetId}`)
 }
 
+export const getDatasetGroupSchemas = async (groupId: string) => {
+  const { data } = await api.get(`/dataset-groups/${groupId}/schemas`)
+  return data
+}
+
+export const getDatasetGroupPreview = async (groupId: string) => {
+  const { data } = await api.get(`/dataset-groups/${groupId}/preview`)
+  return data
+}
+
 export const describeDataset = async (id: string) => {
   const { data } = await api.get(`/analysis/datasets/${id}/describe`)
   return data

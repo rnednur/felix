@@ -207,3 +207,81 @@ async def update_group_membership(
     db.refresh(membership)
 
     return membership
+
+
+@router.get("/{group_id}/schemas")
+async def get_group_schemas(group_id: str, db: Session = Depends(get_db)):
+    """Get schemas for all datasets in a group"""
+    from app.services.storage_service import StorageService
+
+    group = db.query(DatasetGroup).filter(
+        DatasetGroup.id == group_id,
+        DatasetGroup.deleted_at.is_(None)
+    ).first()
+
+    if not group:
+        raise HTTPException(404, "Dataset group not found")
+
+    storage = StorageService()
+    schemas = []
+
+    for membership in sorted(group.memberships, key=lambda m: m.display_order):
+        if membership.dataset.deleted_at is not None:
+            continue
+
+        try:
+            schema = storage.load_schema(membership.dataset_id)
+            schemas.append({
+                "dataset_id": membership.dataset_id,
+                "dataset_name": membership.dataset.name,
+                "alias": membership.alias or membership.dataset.name,
+                "row_count": membership.dataset.row_count,
+                "schema": schema
+            })
+        except Exception as e:
+            print(f"Error loading schema for dataset {membership.dataset_id}: {e}")
+            continue
+
+    return schemas
+
+
+@router.get("/{group_id}/preview")
+async def get_group_preview(group_id: str, db: Session = Depends(get_db)):
+    """Get preview data for all datasets in a group"""
+    from app.services.storage_service import StorageService
+    import pandas as pd
+
+    group = db.query(DatasetGroup).filter(
+        DatasetGroup.id == group_id,
+        DatasetGroup.deleted_at.is_(None)
+    ).first()
+
+    if not group:
+        raise HTTPException(404, "Dataset group not found")
+
+    storage = StorageService()
+    previews = []
+
+    for membership in sorted(group.memberships, key=lambda m: m.display_order):
+        if membership.dataset.deleted_at is not None:
+            continue
+
+        try:
+            # Load first 100 rows
+            df = pd.read_parquet(membership.dataset.parquet_path, engine='pyarrow')
+            preview_df = df.head(100)
+
+            previews.append({
+                "dataset_id": membership.dataset_id,
+                "dataset_name": membership.dataset.name,
+                "alias": membership.alias or membership.dataset.name,
+                "row_count": membership.dataset.row_count,
+                "preview_rows": len(preview_df),
+                "columns": list(preview_df.columns),
+                "data": preview_df.to_dict('records')
+            })
+        except Exception as e:
+            print(f"Error loading preview for dataset {membership.dataset_id}: {e}")
+            continue
+
+    return previews
