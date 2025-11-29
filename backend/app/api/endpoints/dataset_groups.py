@@ -276,6 +276,17 @@ async def get_group_preview(group_id: str, db: Session = Depends(get_db)):
             preview_df = preview_df.replace([np.inf, -np.inf], None)
             preview_df = preview_df.where(pd.notna(preview_df), None)
 
+            # Convert to dict and ensure all values are JSON-safe
+            data = preview_df.to_dict('records')
+
+            # Additional cleanup for any remaining non-JSON values
+            import math
+            for row in data:
+                for key, value in row.items():
+                    if isinstance(value, float):
+                        if math.isnan(value) or math.isinf(value):
+                            row[key] = None
+
             previews.append({
                 "dataset_id": membership.dataset_id,
                 "dataset_name": membership.dataset.name,
@@ -283,10 +294,12 @@ async def get_group_preview(group_id: str, db: Session = Depends(get_db)):
                 "row_count": membership.dataset.row_count,
                 "preview_rows": len(preview_df),
                 "columns": list(preview_df.columns),
-                "data": preview_df.to_dict('records')
+                "data": data
             })
         except Exception as e:
             print(f"Error loading preview for dataset {membership.dataset_id}: {e}")
+            import traceback
+            traceback.print_exc()
             continue
 
     return previews
