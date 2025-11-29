@@ -233,7 +233,19 @@ export default function DatasetGroupDetail() {
           </div>
         ) : (
           <>
-        {/* Canvas */}
+        {/* Chat Sidebar - LEFT SIDE */}
+        <ChatSidebar
+          datasetId={id}
+          messages={messages}
+          onQuerySubmit={handleMessage}
+          analysisMode={analysisMode}
+          onModeChange={setAnalysisMode}
+          isLoading={nlQueryMutation.isPending || isExecuting || isGeneratingCode}
+          verboseMode={verboseMode}
+          onVerboseModeToggle={setVerboseMode}
+        />
+
+        {/* Canvas - RIGHT SIDE */}
         <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
           <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="h-full flex flex-col">
             {/* Tab List */}
@@ -302,18 +314,6 @@ export default function DatasetGroupDetail() {
             </div>
           </Tabs>
         </div>
-
-        {/* Chat Sidebar */}
-        <ChatSidebar
-          datasetId={id}
-          messages={messages}
-          onQuerySubmit={handleMessage}
-          analysisMode={analysisMode}
-          onModeChange={setAnalysisMode}
-          isLoading={nlQueryMutation.isPending || isExecuting || isGeneratingCode}
-          verboseMode={verboseMode}
-          onVerboseModeToggle={setVerboseMode}
-        />
         </>
         )}
       </div>
