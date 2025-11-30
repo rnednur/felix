@@ -4,7 +4,10 @@ from datetime import datetime
 from typing import List
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models.dataset import DatasetGroup, DatasetGroupMembership, Dataset
+from app.models.user import User
+from app.models.dataset_member import DatasetGroupMember, DatasetRole
 from app.schemas.dataset import (
     DatasetGroupCreate,
     DatasetGroupUpdate,
@@ -13,6 +16,7 @@ from app.schemas.dataset import (
     DatasetGroupMembershipCreate,
     DatasetGroupMembershipResponse
 )
+from app.services.permission_service import PermissionService
 
 router = APIRouter(prefix="/dataset-groups", tags=["dataset-groups"])
 
@@ -20,26 +24,38 @@ router = APIRouter(prefix="/dataset-groups", tags=["dataset-groups"])
 @router.post("/", response_model=DatasetGroupResponse)
 async def create_dataset_group(
     group: DatasetGroupCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new dataset group"""
     db_group = DatasetGroup(
         name=group.name,
-        description=group.description
+        description=group.description,
+        owner_id=current_user.id  # Set owner
     )
     db.add(db_group)
     db.commit()
     db.refresh(db_group)
 
+    # Create group member entry for owner
+    owner_member = DatasetGroupMember(
+        group_id=db_group.id,
+        user_id=current_user.id,
+        role=DatasetRole.OWNER
+    )
+    db.add(owner_member)
+    db.commit()
+
     return db_group
 
 
 @router.get("/", response_model=List[DatasetGroupListResponse])
-async def list_dataset_groups(db: Session = Depends(get_db)):
-    """List all active dataset groups"""
-    groups = db.query(DatasetGroup).filter(
-        DatasetGroup.deleted_at.is_(None)
-    ).order_by(DatasetGroup.created_at.desc()).all()
+async def list_dataset_groups(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all dataset groups the current user has access to"""
+    groups = PermissionService.get_user_groups(db, current_user)
 
     # Format response with dataset count
     result = []
@@ -52,11 +68,18 @@ async def list_dataset_groups(db: Session = Depends(get_db)):
             "dataset_count": len([m for m in group.memberships if m.dataset.deleted_at is None])
         })
 
+    # Sort by created_at descending
+    result.sort(key=lambda g: g["created_at"], reverse=True)
+
     return result
 
 
 @router.get("/{group_id}", response_model=DatasetGroupResponse)
-async def get_dataset_group(group_id: str, db: Session = Depends(get_db)):
+async def get_dataset_group(
+    group_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Get dataset group with all members"""
     group = db.query(DatasetGroup).filter(
         DatasetGroup.id == group_id,
@@ -66,6 +89,10 @@ async def get_dataset_group(group_id: str, db: Session = Depends(get_db)):
     if not group:
         raise HTTPException(404, "Dataset group not found")
 
+    # Check permissions
+    if not PermissionService.can_access_group(db, current_user, group_id):
+        raise HTTPException(403, "Access denied")
+
     return group
 
 
@@ -73,6 +100,7 @@ async def get_dataset_group(group_id: str, db: Session = Depends(get_db)):
 async def update_dataset_group(
     group_id: str,
     updates: DatasetGroupUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update dataset group metadata"""
@@ -83,6 +111,10 @@ async def update_dataset_group(
 
     if not group:
         raise HTTPException(404, "Dataset group not found")
+
+    # Check permissions (require EDITOR role or higher)
+    if not PermissionService.can_access_group(db, current_user, group_id, DatasetRole.EDITOR):
+        raise HTTPException(403, "Access denied - EDITOR role required")
 
     if updates.name is not None:
         group.name = updates.name
@@ -96,7 +128,11 @@ async def update_dataset_group(
 
 
 @router.delete("/{group_id}")
-async def delete_dataset_group(group_id: str, db: Session = Depends(get_db)):
+async def delete_dataset_group(
+    group_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Soft delete a dataset group"""
     group = db.query(DatasetGroup).filter(
         DatasetGroup.id == group_id,
@@ -105,6 +141,10 @@ async def delete_dataset_group(group_id: str, db: Session = Depends(get_db)):
 
     if not group:
         raise HTTPException(404, "Dataset group not found")
+
+    # Only owner can delete
+    if group.owner_id != current_user.id:
+        raise HTTPException(403, "Access denied - only owner can delete")
 
     group.deleted_at = datetime.utcnow()
     db.commit()

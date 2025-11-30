@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DatasetHub } from '@/components/datasets/DatasetHub'
 import { IconButton } from '@/components/ui/icon-button'
+import { UserMenu } from '@/components/layout/UserMenu'
 import { ArrowLeft } from 'lucide-react'
 
 export default function Home() {
@@ -39,17 +40,20 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Back to last dataset button */}
-        {lastDatasetId && (
-          <IconButton
-            variant="default"
-            size="md"
-            tooltip="Back to Dataset"
-            onClick={handleBackToDataset}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </IconButton>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Back to last dataset button */}
+          {lastDatasetId && (
+            <IconButton
+              variant="default"
+              size="md"
+              tooltip="Back to Dataset"
+              onClick={handleBackToDataset}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </IconButton>
+          )}
+          <UserMenu />
+        </div>
       </div>
 
       <DatasetHub />

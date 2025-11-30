@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     PRESENTATION_MODEL: str = "google/gemini-2.0-flash-exp:free"  # Gemini for presentations
     ENVIRONMENT: str = "development"
 
+    # Security settings
+    SECRET_KEY: str = "your-secret-key-change-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     DATA_DIR: str = "data"
     DATASETS_DIR: str = "data/datasets"
     QUERIES_DIR: str = "data/queries"

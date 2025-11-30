@@ -26,6 +26,9 @@ class Dataset(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
 
+    # Ownership
+    owner_id = Column(String, ForeignKey("users.id"), nullable=True)  # Nullable for backwards compatibility
+
     # File paths
     parquet_path = Column(String, nullable=False)
     schema_path = Column(String, nullable=False)
@@ -49,6 +52,9 @@ class Dataset(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
+    owner = relationship("User", back_populates="owned_datasets", foreign_keys=[owner_id])
+    members = relationship("DatasetMember", back_populates="dataset")
+    shares = relationship("DatasetShare", back_populates="dataset")
     versions = relationship("DatasetVersion", back_populates="dataset")
     queries = relationship("Query", back_populates="dataset")
     code_executions = relationship("CodeExecution", back_populates="dataset")
@@ -81,12 +87,18 @@ class DatasetGroup(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
 
+    # Ownership
+    owner_id = Column(String, ForeignKey("users.id"), nullable=True)  # Nullable for backwards compatibility
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
+    owner = relationship("User", back_populates="owned_groups", foreign_keys=[owner_id])
+    members = relationship("DatasetGroupMember", back_populates="group")
+    shares = relationship("DatasetGroupShare", back_populates="group")
     memberships = relationship("DatasetGroupMembership", back_populates="group")
     queries = relationship("Query", back_populates="group")
 

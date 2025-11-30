@@ -1,4 +1,7 @@
 from app.models.dataset import Dataset, DatasetVersion, DatasetGroup, DatasetGroupMembership, DatasetGroupRelationship
+from app.models.user import User, UserRole
+from app.models.dataset_member import DatasetMember, DatasetGroupMember, DatasetRole
+from app.models.dataset_share import DatasetShare, DatasetGroupShare, PublicDataset, SharePermission, ShareType
 from app.models.query import Query
 from app.models.visualization import Visualization
 from app.models.semantic import SemanticMetric
@@ -12,6 +15,16 @@ __all__ = [
     "DatasetGroup",
     "DatasetGroupMembership",
     "DatasetGroupRelationship",
+    "User",
+    "UserRole",
+    "DatasetMember",
+    "DatasetGroupMember",
+    "DatasetRole",
+    "DatasetShare",
+    "DatasetGroupShare",
+    "PublicDataset",
+    "SharePermission",
+    "ShareType",
     "Query",
     "Visualization",
     "SemanticMetric",

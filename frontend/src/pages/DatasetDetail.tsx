@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useDataset, useDatasetPreview, useDatasetSchema } from '@/hooks/useDatasets'
 import { useNLQuery } from '@/hooks/useQuery'
 import { useVisualizationSuggestions } from '@/hooks/useVisualization'
@@ -12,13 +13,15 @@ import { ReportView } from '@/components/canvas/ReportView'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
+import { ShareModal } from '@/components/sharing/ShareModal'
 import { PlanEditor } from '@/components/research/PlanEditor'
 import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History } from 'lucide-react'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2 } from 'lucide-react'
 import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult } from '@/services/api'
+import axios from '@/services/api'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -75,8 +78,21 @@ export default function DatasetDetail() {
   // Research history
   const [showHistoryModal, setShowHistoryModal] = useState(false)
 
+  // Sharing
+  const [showShareModal, setShowShareModal] = useState(false)
+
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
+
+  // Check user's role and permissions
+  const { data: userRole } = useQuery({
+    queryKey: ['user-role', id],
+    queryFn: async () => {
+      const { data } = await axios.get(`/sharing/datasets/${id}/my-role`)
+      return data
+    },
+    enabled: !!id
+  })
 
   // Removed auto-describe - users can click "Describe Dataset" button to open modal
 
@@ -585,6 +601,15 @@ export default function DatasetDetail() {
         </div>
       )}
 
+      {/* Share Modal */}
+      {showShareModal && dataset && (
+        <ShareModal
+          datasetId={id!}
+          datasetName={dataset.name}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+
       {/* Research History Modal */}
       <ResearchHistoryModal
         isOpen={showHistoryModal}
@@ -657,6 +682,16 @@ export default function DatasetDetail() {
                 >
                   <History className="h-5 w-5" />
                 </IconButton>
+                {userRole?.can_share && (
+                  <IconButton
+                    variant="default"
+                    size="md"
+                    tooltip="Share Dataset"
+                    onClick={() => setShowShareModal(true)}
+                  >
+                    <Share2 className="h-5 w-5" />
+                  </IconButton>
+                )}
                 <IconButton
                   variant="primary"
                   size="md"
