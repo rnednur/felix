@@ -240,8 +240,13 @@ class NLToSQLService:
             col = item['column']
             col_desc = f"- \"{col['name']}\" ({col['dtype']})"
 
-            # Track date/time columns
-            if 'date' in col['name'].lower() or 'time' in col['name'].lower():
+            # Track date/time columns that are stored as STRINGS (need strptime)
+            # Only add to date_columns if it's VARCHAR/STRING type with date-like name
+            dtype_lower = col['dtype'].lower()
+            is_string_type = 'varchar' in dtype_lower or 'string' in dtype_lower or 'text' in dtype_lower
+            is_date_name = 'date' in col['name'].lower() or 'time' in col['name'].lower()
+
+            if is_string_type and is_date_name:
                 date_columns.append(col['name'])
 
             if 'stats' in col:
@@ -257,12 +262,15 @@ class NLToSQLService:
         if date_columns:
             date_instructions = f"""
 IMPORTANT - Date/Time Handling:
-The following columns contain dates in format "MM/DD/YYYY HH:MM:SS AM/PM": {', '.join([f'"{c}"' for c in date_columns])}
+The following columns are STRING columns containing dates in format "MM/DD/YYYY HH:MM:SS AM/PM": {', '.join([f'"{c}"' for c in date_columns])}
+For THESE STRING COLUMNS ONLY, use strptime() to parse them:
 - To convert to date: strptime("{col}", '%m/%d/%Y %I:%M:%S %p')
 - To extract year: CAST(strftime(strptime("{col}", '%m/%d/%Y %I:%M:%S %p'), '%Y') AS INTEGER)
 - To filter dates: strptime("{col}", '%m/%d/%Y %I:%M:%S %p') >= strptime('01/01/2020 12:00:00 AM', '%m/%d/%Y %I:%M:%S %p')
-- To get min/max dates: Use strptime() to convert before MIN/MAX
-- For date ranges: Always use strptime() to parse the string dates
+
+For columns that are already DATE or TIMESTAMP type, DO NOT use strptime():
+- Use them directly: SELECT "date_column" FROM dataset WHERE "date_column" >= '2020-01-01'
+- Extract year: CAST(strftime("date_column", '%Y') AS INTEGER)
 
 Example: SELECT MIN(strptime("Date Rptd", '%m/%d/%Y %I:%M:%S %p')) as min_date FROM dataset
 """
@@ -290,7 +298,7 @@ Rules:
 - Use table name "dataset"
 - ALWAYS use double quotes (") for column names, never backticks (`)
 - Example: SELECT "Order ID", "Customer Name" FROM dataset
-- For date columns, ALWAYS use strptime() to parse the string format
+- Check column data types: use strptime() ONLY for STRING columns with dates, not for DATE/TIMESTAMP columns
 - Add LIMIT 1000 unless user specifies otherwise
 - No cartesian joins
 - Use column names exactly as shown in the schema
@@ -309,8 +317,13 @@ SQL Query:"""
             col = item['column']
             col_desc = f"- \"{col['name']}\" ({col['dtype']})"
 
-            # Track date/time columns
-            if 'date' in col['name'].lower() or 'time' in col['name'].lower():
+            # Track date/time columns that are stored as STRINGS (need strptime)
+            # Only add to date_columns if it's VARCHAR/STRING type with date-like name
+            dtype_lower = col['dtype'].lower()
+            is_string_type = 'varchar' in dtype_lower or 'string' in dtype_lower or 'text' in dtype_lower
+            is_date_name = 'date' in col['name'].lower() or 'time' in col['name'].lower()
+
+            if is_string_type and is_date_name:
                 date_columns.append(col['name'])
 
             if 'stats' in col:
@@ -326,10 +339,15 @@ SQL Query:"""
         if date_columns:
             date_instructions = f"""
 IMPORTANT - Date/Time Handling:
-The following columns contain dates in format "MM/DD/YYYY HH:MM:SS AM/PM": {', '.join([f'"{c}"' for c in date_columns])}
+The following columns are STRING columns containing dates in format "MM/DD/YYYY HH:MM:SS AM/PM": {', '.join([f'"{c}"' for c in date_columns])}
+For THESE STRING COLUMNS ONLY, use strptime() to parse them:
 - To convert to date: strptime("{col}", '%m/%d/%Y %I:%M:%S %p')
 - To extract year: CAST(strftime(strptime("{col}", '%m/%d/%Y %I:%M:%S %p'), '%Y') AS INTEGER)
 - To filter dates: strptime("{col}", '%m/%d/%Y %I:%M:%S %p') >= strptime('01/01/2020 12:00:00 AM', '%m/%d/%Y %I:%M:%S %p')
+
+For columns that are already DATE or TIMESTAMP type, DO NOT use strptime():
+- Use them directly: SELECT "date_column" FROM dataset WHERE "date_column" >= '2020-01-01'
+- Extract year: CAST(strftime("date_column", '%Y') AS INTEGER)
 """
 
         # Get metadata and rules context
@@ -359,7 +377,7 @@ ERROR MESSAGE:
 Fix the SQL query to address the error. Common issues:
 - Column names must use double quotes (") not backticks (`)
 - Check column names exist in schema
-- For date columns, use strptime() to parse string dates
+- Check column data types: use strptime() ONLY for STRING columns with dates, not for DATE/TIMESTAMP columns
 - Ensure proper DuckDB syntax (not MySQL/PostgreSQL)
 - Add LIMIT 1000 unless user specifies otherwise
 
@@ -470,7 +488,7 @@ Rules:
 - Column names must be quoted: e.g., "Order ID" (NOT `Order ID`)
 - Each dataset is loaded as a separate table with the alias shown
 - Use appropriate JOINs when data from multiple tables is needed
-- For date columns, use strptime() to parse string dates
+- Check column data types: use strptime() ONLY for STRING columns with dates, not for DATE/TIMESTAMP columns
 - Add LIMIT 1000 unless user specifies otherwise
 - Qualify column names with table aliases (e.g., "sales"."Order ID")
 - For aggregations, include GROUP BY clause
@@ -525,7 +543,7 @@ Fix the SQL query to address the error. Common issues:
 - Qualify column names with table aliases (e.g., "sales"."Order ID")
 - Ensure proper JOINs if combining tables
 - Use correct DuckDB syntax (not MySQL/PostgreSQL)
-- For date columns, use strptime() to parse string dates
+- Check column data types: use strptime() ONLY for STRING columns with dates, not for DATE/TIMESTAMP columns
 
 Rules:
 - This is DuckDB SQL (NOT MySQL or PostgreSQL syntax)

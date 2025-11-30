@@ -4,6 +4,7 @@ import { useDataset, useDatasetPreview, useDatasetSchema } from '@/hooks/useData
 import { useNLQuery } from '@/hooks/useQuery'
 import { useVisualizationSuggestions } from '@/hooks/useVisualization'
 import { ChatSidebar, type AnalysisMode } from '@/components/chat/ChatSidebar'
+import { DataWorkspaceLayout } from '@/components/layout/DataWorkspaceLayout'
 import { SpreadsheetView } from '@/components/canvas/SpreadsheetView'
 import { DashboardView } from '@/components/canvas/DashboardView'
 import { SchemaView } from '@/components/canvas/SchemaView'
@@ -542,27 +543,7 @@ export default function DatasetDetail() {
   const charts = vizSuggestions?.suggestions || []
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
-      {/* Chat Sidebar */}
-      <ChatSidebar
-        datasetId={id}
-        onQuerySubmit={handleQuerySubmit}
-        messages={messages}
-        isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting}
-        analysisMode={analysisMode}
-        onModeChange={setAnalysisMode}
-        verboseMode={verboseMode}
-        onVerboseModeToggle={setVerboseMode}
-        generateInfographic={generateInfographic}
-        onInfographicToggle={setGenerateInfographic}
-        infographicFormat={infographicFormat}
-        onInfographicFormatChange={setInfographicFormat}
-        infographicColorScheme={infographicColorScheme}
-        onInfographicColorSchemeChange={setInfographicColorScheme}
-        infographicGenerationMethod={infographicGenerationMethod}
-        onInfographicGenerationMethodChange={setInfographicGenerationMethod}
-      />
-
+    <>
       {/* Code Preview Modal */}
       {codePreview && (
         <CodePreviewModal
@@ -615,70 +596,90 @@ export default function DatasetDetail() {
         }}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Bar */}
-        <div className="border-b border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <IconButton
-                variant="ghost"
-                size="md"
-                tooltip="Back to Dataset Hub"
-                onClick={() => navigate('/')}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </IconButton>
-              <div>
-                <h2 className="text-xl font-semibold">{dataset.name}</h2>
-                <p className="text-sm text-gray-500">
-                  {dataset.row_count.toLocaleString()} rows • {dataset.source_type}
-                </p>
+      <DataWorkspaceLayout
+        sidebar={
+          <ChatSidebar
+            datasetId={id}
+            onQuerySubmit={handleQuerySubmit}
+            messages={messages}
+            isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting}
+            analysisMode={analysisMode}
+            onModeChange={setAnalysisMode}
+            verboseMode={verboseMode}
+            onVerboseModeToggle={setVerboseMode}
+            generateInfographic={generateInfographic}
+            onInfographicToggle={setGenerateInfographic}
+            infographicFormat={infographicFormat}
+            onInfographicFormatChange={setInfographicFormat}
+            infographicColorScheme={infographicColorScheme}
+            onInfographicColorSchemeChange={setInfographicColorScheme}
+            infographicGenerationMethod={infographicGenerationMethod}
+            onInfographicGenerationMethodChange={setInfographicGenerationMethod}
+          />
+        }
+        header={
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <IconButton
+                  variant="ghost"
+                  size="md"
+                  tooltip="Back to Dataset Hub"
+                  onClick={() => navigate('/')}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </IconButton>
+                <div>
+                  <h2 className="text-xl font-semibold">{dataset.name}</h2>
+                  <p className="text-sm text-gray-500">
+                    {dataset.row_count.toLocaleString()} rows • {dataset.source_type}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Describe Dataset"
+                  onClick={async () => {
+                    const description = await describeDataset(id!)
+                    setOverviewData(description)
+                    setShowOverviewModal(true)
+                  }}
+                >
+                  <Info className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Research History"
+                  onClick={() => setShowHistoryModal(true)}
+                >
+                  <History className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="primary"
+                  size="md"
+                  tooltip="Upload Dataset"
+                  onClick={() => navigate('/')}
+                >
+                  <Upload className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Settings"
+                  onClick={() => setShowSettingsPanel(true)}
+                >
+                  <Settings className="h-5 w-5" />
+                </IconButton>
               </div>
             </div>
-            <div className="flex gap-2">
-              <IconButton
-                variant="default"
-                size="md"
-                tooltip="Describe Dataset"
-                onClick={async () => {
-                  const description = await describeDataset(id!)
-                  setOverviewData(description)
-                  setShowOverviewModal(true)
-                }}
-              >
-                <Info className="h-5 w-5" />
-              </IconButton>
-              <IconButton
-                variant="default"
-                size="md"
-                tooltip="Research History"
-                onClick={() => setShowHistoryModal(true)}
-              >
-                <History className="h-5 w-5" />
-              </IconButton>
-              <IconButton
-                variant="primary"
-                size="md"
-                tooltip="Upload Dataset"
-                onClick={() => navigate('/')}
-              >
-                <Upload className="h-5 w-5" />
-              </IconButton>
-              <IconButton
-                variant="default"
-                size="md"
-                tooltip="Settings"
-                onClick={() => setShowSettingsPanel(true)}
-              >
-                <Settings className="h-5 w-5" />
-              </IconButton>
-            </div>
           </div>
-        </div>
-
+        }
+      >
         {/* Tabs */}
-        <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden">
+        <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden h-full">
           <div className="border-b border-gray-200 bg-gray-50 px-4">
             <TabsList className="bg-transparent">
               <TabsTrigger value="spreadsheet" className="gap-2">
@@ -923,7 +924,7 @@ export default function DatasetDetail() {
             )}
           </TabsContent>
         </Tabs>
-      </div>
-    </div>
+      </DataWorkspaceLayout>
+    </>
   )
 }

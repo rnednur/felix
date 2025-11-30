@@ -114,7 +114,7 @@ export function ChatSidebar({
   }
 
   return (
-    <div className="w-96 border-r border-gray-200 flex flex-col bg-white h-screen overflow-hidden">
+    <div className="flex flex-col bg-white h-screen overflow-hidden">
       {/* Header */}
       <div className="border-b border-gray-200 p-3">
         <div className="flex items-center gap-1">

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileSpreadsheet, BarChart3, Table2, FileText, Database } from 'lucide-react'
+import { ArrowLeft, FileSpreadsheet, BarChart3, Table2, FileText, Database, Link2 } from 'lucide-react'
 import { DatasetGroupManager } from '@/components/datasets/DatasetGroupManager'
+import { RelationshipsManager } from '@/components/datasets/RelationshipsManager'
 import { useDatasetGroup, useDatasetGroupSchemas, useDatasetGroupPreview } from '@/hooks/useDatasetGroups'
 import { useNLQuery } from '@/hooks/useQuery'
 import { useVisualizationSuggestions } from '@/hooks/useVisualization'
 import { ChatSidebar, type AnalysisMode } from '@/components/chat/ChatSidebar'
+import { DataWorkspaceLayout } from '@/components/layout/DataWorkspaceLayout'
 import { SpreadsheetView } from '@/components/canvas/SpreadsheetView'
 import { DashboardView } from '@/components/canvas/DashboardView'
 import { ReportView } from '@/components/canvas/ReportView'
@@ -33,7 +35,7 @@ export default function DatasetGroupDetail() {
   const isNewGroup = id === 'new'
   const [showManager, setShowManager] = useState(false)  // Start collapsed
   const [messages, setMessages] = useState<Message[]>([])
-  const [currentView, setCurrentView] = useState<'preview' | 'spreadsheet' | 'schema' | 'dashboard' | 'report'>('preview')
+  const [currentView, setCurrentView] = useState<'preview' | 'spreadsheet' | 'schema' | 'dashboard' | 'report' | 'relationships'>('preview')
   const [queryResult, setQueryResult] = useState<any>(null)
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('auto')
   const [isExecuting, setIsExecuting] = useState(false)
@@ -179,10 +181,39 @@ export default function DatasetGroupDetail() {
     }
   }
 
+  if (isNewGroup) {
+    return (
+      <div className="flex h-screen bg-white overflow-hidden">
+        <div className="flex-1 flex flex-col">
+          <div className="border-b border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <IconButton
+                  variant="ghost"
+                  size="md"
+                  tooltip="Back to Dataset Hub"
+                  onClick={() => navigate('/')}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </IconButton>
+                <div>
+                  <h2 className="text-xl font-semibold">Create Dataset Group</h2>
+                  <p className="text-sm text-gray-500">Configure your new dataset group</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 bg-gray-50 p-6">
+            <DatasetGroupManager />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
-      {/* Chat Sidebar - LEFT SIDE */}
-      {!isNewGroup && (
+    <DataWorkspaceLayout
+      sidebar={
         <ChatSidebar
           datasetId={id}
           messages={messages}
@@ -193,21 +224,19 @@ export default function DatasetGroupDetail() {
           verboseMode={verboseMode}
           onVerboseModeToggle={setVerboseMode}
         />
-      )}
-
-      {/* Main Content - RIGHT SIDE */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Header */}
-        <div className="border-b border-gray-200 bg-white p-4">
+      }
+      header={
+        <div className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button
+              <IconButton
+                variant="ghost"
+                size="md"
+                tooltip="Back to Dataset Hub"
                 onClick={() => navigate('/')}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </button>
+                <ArrowLeft className="h-5 w-5" />
+              </IconButton>
               <div>
                 <h2 className="text-xl font-semibold">{group?.name || 'Dataset Group'}</h2>
                 {group?.description && (
@@ -229,25 +258,16 @@ export default function DatasetGroupDetail() {
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Manager Section (Collapsible) */}
-        {showManager && (
-          <div className="bg-gray-50 border-b border-gray-200 p-6">
-            <DatasetGroupManager />
-          </div>
-        )}
-
-        {/* Content Area */}
-        {isNewGroup ? (
-          <div className="flex-1 flex items-center justify-center bg-gray-50">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Create a Dataset Group</h2>
-              <p className="text-gray-600 mb-4">Use the manager above to create and configure your dataset group</p>
+          {/* Manager Section (Collapsible) */}
+          {showManager && (
+            <div className="bg-gray-50 border-t border-gray-200 mt-4 pt-4">
+              <DatasetGroupManager />
             </div>
-          </div>
-        ) : (
-          <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden">
+          )}
+        </div>
+      }
+    >
+      <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden h-full">
             {/* Tab List */}
             <div className="border-b border-gray-200 bg-gray-50 px-4">
               <TabsList className="bg-transparent">
@@ -258,6 +278,10 @@ export default function DatasetGroupDetail() {
                 <TabsTrigger value="schema" className="gap-2">
                   <Table2 className="h-4 w-4" />
                   Schema
+                </TabsTrigger>
+                <TabsTrigger value="relationships" className="gap-2">
+                  <Link2 className="h-4 w-4" />
+                  Relationships
                 </TabsTrigger>
                 <TabsTrigger value="spreadsheet" className="gap-2">
                   <FileSpreadsheet className="h-4 w-4" />
@@ -311,6 +335,23 @@ export default function DatasetGroupDetail() {
                 </div>
               )}
             </TabsContent>
+            <TabsContent value="relationships" className="flex-1 m-0 overflow-auto">
+              {group?.memberships && schemas ? (
+                <RelationshipsManager
+                  groupId={id!}
+                  datasets={group.memberships.map(m => ({
+                    id: m.dataset_id,
+                    name: m.dataset.name,
+                    alias: m.alias
+                  }))}
+                  schemas={schemas}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  Add datasets to this group to define relationships.
+                </div>
+              )}
+            </TabsContent>
             <TabsContent value="spreadsheet" className="flex-1 m-0 p-6 overflow-auto">
               <SpreadsheetView data={prepareSpreadsheetData()} />
             </TabsContent>
@@ -321,8 +362,6 @@ export default function DatasetGroupDetail() {
               <ReportView report={deepResearchReport} />
             </TabsContent>
           </Tabs>
-        )}
-      </div>
-    </div>
+    </DataWorkspaceLayout>
   )
 }

@@ -98,6 +98,20 @@ export interface DeepResearchResult {
   error?: string
 }
 
+export interface ColumnMetadataSuggestion {
+  column: string
+  description: string
+  business_definition?: string
+  semantic_type?: string
+  examples?: string[]
+}
+
+export interface AIDescribeColumnsResult {
+  success: boolean
+  suggestions: ColumnMetadataSuggestion[]
+  message: string
+}
+
 // Datasets
 export const uploadDataset = async (formData: FormData): Promise<Dataset> => {
   const { data } = await api.post('/datasets/upload', formData)
@@ -191,6 +205,16 @@ export const describeDataset = async (id: string) => {
 
 export const getDatasetSummary = async (id: string) => {
   const { data } = await api.get(`/analysis/datasets/${id}/summary`)
+  return data
+}
+
+export const aiDescribeColumns = async (datasetId: string): Promise<AIDescribeColumnsResult> => {
+  const { data } = await api.post(`/metadata/datasets/${datasetId}/ai-describe-columns`)
+  return data
+}
+
+export const getColumnMetadata = async (datasetId: string) => {
+  const { data } = await api.get(`/metadata/datasets/${datasetId}/columns`)
   return data
 }
 
