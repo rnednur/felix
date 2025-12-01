@@ -8,6 +8,12 @@ class DatasetCreate(BaseModel):
     description: Optional[str] = None
 
 
+class GoogleSheetsImportRequest(BaseModel):
+    google_sheets_url: str
+    sheet_name: Optional[str] = None  # If None, imports first sheet
+    access_token: str  # Google OAuth access token
+
+
 class DatasetResponse(BaseModel):
     id: str
     name: str

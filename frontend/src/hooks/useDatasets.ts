@@ -6,6 +6,7 @@ import {
   getDatasetPreview,
   getDatasetSchema,
   deleteDataset,
+  importGoogleSheets,
 } from '@/services/api'
 
 export function useDatasets() {
@@ -55,6 +56,17 @@ export function useDeleteDataset() {
 
   return useMutation({
     mutationFn: deleteDataset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['datasets'] })
+    },
+  })
+}
+
+export function useImportGoogleSheets() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: importGoogleSheets,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['datasets'] })
     },

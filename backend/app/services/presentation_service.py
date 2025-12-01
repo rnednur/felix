@@ -204,8 +204,20 @@ Focus on:
 
                 result = response.json()
                 logger.info(f"✅ Received response from Gemini")
+                logger.info(f"📄 Response keys: {list(result.keys())}")
 
-                content = result['choices'][0]['message']['content']
+                # Handle different response formats (OpenRouter/OpenAI vs direct API)
+                if 'choices' in result:
+                    content = result['choices'][0]['message']['content']
+                elif 'message' in result:
+                    content = result['message']['content']
+                elif 'content' in result:
+                    content = result['content']
+                else:
+                    logger.warning(f"⚠️ Unknown response format: {result}")
+                    logger.warning(f"⚠️ Continuing without Gemini enhancement")
+                    return cleaned_data
+
                 logger.info(f"📄 Response content length: {len(content)} characters")
 
                 # Parse JSON response
@@ -291,6 +303,11 @@ Focus on:
         self._add_title_slide(enhanced_data)
         self._add_executive_summary(enhanced_data)
         self._add_key_findings(enhanced_data)
+
+        # Add visualizations if available
+        if enhanced_data.get("visualizations"):
+            self._add_visualizations(enhanced_data)
+
         self._add_supporting_details(enhanced_data)
 
         if include_verbose and enhanced_data.get("methodology"):
@@ -573,10 +590,19 @@ Focus on:
         line.line.width = Pt(2)
 
     def _add_data_table(self, slide, data: Dict[str, Any], top: float = Inches(4)):
-        """Add simple data table to slide"""
-        if not data or not isinstance(data, dict):
+        """Add enhanced data table to slide with support for arrays and dicts"""
+        if not data:
             return
 
+        # Handle array of dicts (tabular data from query results)
+        if isinstance(data, dict) and "preview" in data and isinstance(data["preview"], list):
+            self._add_tabular_data_table(slide, data["preview"], top)
+        # Handle simple dict (key-value pairs)
+        elif isinstance(data, dict):
+            self._add_simple_data_table(slide, data, top)
+
+    def _add_simple_data_table(self, slide, data: Dict[str, Any], top: float = Inches(4)):
+        """Add simple key-value table"""
         # Convert dict to rows (limited to first 5 items)
         items = list(data.items())[:5]
         if not items:
@@ -607,13 +633,237 @@ Focus on:
             cell.text_frame.paragraphs[0].font.bold = True
             cell.text_frame.paragraphs[0].font.size = Pt(12)
 
-        # Data rows
+        # Data rows with alternating colors
         for idx, (key, value) in enumerate(items):
             table.cell(idx + 1, 0).text = str(key)
             table.cell(idx + 1, 1).text = str(value)
 
-            # Style data cells
+            # Style data cells with alternating row colors
             for col in range(cols):
                 cell = table.cell(idx + 1, col)
                 cell.text_frame.paragraphs[0].font.size = Pt(11)
                 cell.text_frame.paragraphs[0].font.color.rgb = self.theme["text"]
+
+                # Alternating row background
+                if idx % 2 == 1:
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(245, 245, 245)
+
+    def _add_tabular_data_table(self, slide, data_rows: List[Dict[str, Any]], top: float = Inches(4)):
+        """Add multi-column table from array of dicts"""
+        if not data_rows or len(data_rows) == 0:
+            return
+
+        # Get column names from first row
+        columns = list(data_rows[0].keys())
+        num_cols = min(len(columns), 6)  # Limit to 6 columns for readability
+        columns = columns[:num_cols]
+
+        # Limit rows to fit on slide
+        max_rows = 5
+        data_subset = data_rows[:max_rows]
+
+        rows = len(data_subset) + 1  # +1 for header
+
+        # Add table
+        table = slide.shapes.add_table(
+            rows, num_cols, Inches(0.8), top, Inches(8.4), Inches(2.5)
+        ).table
+
+        # Set column widths evenly (must be int for python-pptx)
+        col_width = int(Inches(8.4) / num_cols)
+        for col_idx in range(num_cols):
+            table.columns[col_idx].width = col_width
+
+        # Header row
+        for col_idx, col_name in enumerate(columns):
+            cell = table.cell(0, col_idx)
+            cell.text = str(col_name)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = self.theme["primary"]
+            cell.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+            cell.text_frame.paragraphs[0].font.bold = True
+            cell.text_frame.paragraphs[0].font.size = Pt(10)
+
+        # Data rows
+        for row_idx, row_data in enumerate(data_subset):
+            for col_idx, col_name in enumerate(columns):
+                cell = table.cell(row_idx + 1, col_idx)
+                value = row_data.get(col_name, "")
+
+                # Format numbers
+                if isinstance(value, (int, float)):
+                    if isinstance(value, float):
+                        cell.text = f"{value:,.2f}"
+                    else:
+                        cell.text = f"{value:,}"
+                else:
+                    cell.text = str(value) if value is not None else ""
+
+                # Style
+                cell.text_frame.paragraphs[0].font.size = Pt(9)
+                cell.text_frame.paragraphs[0].font.color.rgb = self.theme["text"]
+
+                # Alternating row colors
+                if row_idx % 2 == 1:
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(245, 245, 245)
+
+    def _add_visualizations(self, data: Dict[str, Any]):
+        """Add visualization slides with embedded charts"""
+        import base64
+        import io
+
+        visualizations = data.get("visualizations", [])
+        logger.info(f"📊 Adding {len(visualizations)} visualization slides...")
+
+        # Group visualizations for layout (max 2 per slide for comparison)
+        for i in range(0, len(visualizations), 2):
+            viz_group = visualizations[i:i + 2]
+
+            if len(viz_group) == 1:
+                # Single visualization - full slide
+                self._add_single_visualization_slide(viz_group[0], i + 1)
+            else:
+                # Two visualizations - comparison layout
+                self._add_comparison_visualization_slide(viz_group[0], viz_group[1], i + 1)
+
+    def _add_single_visualization_slide(self, viz: Dict[str, Any], index: int):
+        """Add a single visualization with full slide layout"""
+        import base64
+        import io
+
+        slide = self.prs.slides.add_slide(self.prs.slide_layouts[6])
+
+        # Title with caption
+        caption = viz.get("caption", f"Visualization {index}")
+        self._add_slide_title(slide, caption)
+
+        try:
+            # Decode base64 image
+            image_data = base64.b64decode(viz["data"])
+            image_stream = io.BytesIO(image_data)
+
+            # Add image centered on slide
+            slide.shapes.add_picture(
+                image_stream,
+                left=Inches(1.5),
+                top=Inches(2.2),
+                width=Inches(7)  # Auto-height preserves aspect ratio
+            )
+
+            logger.info(f"✅ Added visualization: {caption}")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to add visualization {index}: {str(e)}")
+            # Add error text instead
+            error_box = slide.shapes.add_textbox(
+                Inches(2), Inches(3), Inches(6), Inches(1)
+            )
+            error_box.text_frame.text = f"Error loading visualization: {str(e)}"
+            error_box.text_frame.paragraphs[0].font.size = Pt(14)
+            error_box.text_frame.paragraphs[0].font.color.rgb = RGBColor(192, 0, 0)
+
+    def _add_comparison_visualization_slide(self, viz1: Dict[str, Any], viz2: Dict[str, Any], index: int):
+        """Add two visualizations side-by-side for comparison"""
+        import base64
+        import io
+
+        slide = self.prs.slides.add_slide(self.prs.slide_layouts[6])
+
+        # Title
+        self._add_slide_title(slide, "Data Visualizations")
+
+        try:
+            # Left visualization
+            image_data1 = base64.b64decode(viz1["data"])
+            image_stream1 = io.BytesIO(image_data1)
+
+            slide.shapes.add_picture(
+                image_stream1,
+                left=Inches(0.5),
+                top=Inches(2.5),
+                width=Inches(4.5)
+            )
+
+            # Left caption
+            caption_box1 = slide.shapes.add_textbox(
+                Inches(0.5), Inches(2), Inches(4.5), Inches(0.4)
+            )
+            caption_box1.text_frame.text = viz1.get("caption", "")
+            caption_box1.text_frame.paragraphs[0].font.size = Pt(11)
+            caption_box1.text_frame.paragraphs[0].font.color.rgb = self.theme["text"]
+            caption_box1.text_frame.paragraphs[0].font.italic = True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to add left visualization: {str(e)}")
+
+        try:
+            # Right visualization
+            image_data2 = base64.b64decode(viz2["data"])
+            image_stream2 = io.BytesIO(image_data2)
+
+            slide.shapes.add_picture(
+                image_stream2,
+                left=Inches(5.0),
+                top=Inches(2.5),
+                width=Inches(4.5)
+            )
+
+            # Right caption
+            caption_box2 = slide.shapes.add_textbox(
+                Inches(5.0), Inches(2), Inches(4.5), Inches(0.4)
+            )
+            caption_box2.text_frame.text = viz2.get("caption", "")
+            caption_box2.text_frame.paragraphs[0].font.size = Pt(11)
+            caption_box2.text_frame.paragraphs[0].font.color.rgb = self.theme["text"]
+            caption_box2.text_frame.paragraphs[0].font.italic = True
+
+            logger.info(f"✅ Added comparison visualizations")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to add right visualization: {str(e)}")
+
+    def _add_two_column_slide(self, title: str, text_content: str, viz_data: Dict[str, Any]):
+        """Add a two-column slide with text on left and visualization on right"""
+        import base64
+        import io
+
+        slide = self.prs.slides.add_slide(self.prs.slide_layouts[6])
+        self._add_slide_title(slide, title)
+
+        # Left column: Text content
+        text_box = slide.shapes.add_textbox(
+            Inches(0.5), Inches(2), Inches(4.5), Inches(4.5)
+        )
+        text_frame = text_box.text_frame
+        text_frame.word_wrap = True
+        text_frame.text = text_content
+        text_frame.paragraphs[0].font.size = Pt(14)
+        text_frame.paragraphs[0].font.color.rgb = self.theme["text"]
+        text_frame.paragraphs[0].line_spacing = 1.3
+
+        # Right column: Visualization
+        try:
+            image_data = base64.b64decode(viz_data["data"])
+            image_stream = io.BytesIO(image_data)
+
+            slide.shapes.add_picture(
+                image_stream,
+                left=Inches(5.5),
+                top=Inches(2),
+                width=Inches(4)
+            )
+
+            # Caption below chart
+            if viz_data.get("caption"):
+                caption_box = slide.shapes.add_textbox(
+                    Inches(5.5), Inches(6.2), Inches(4), Inches(0.4)
+                )
+                caption_box.text_frame.text = viz_data["caption"]
+                caption_box.text_frame.paragraphs[0].font.size = Pt(10)
+                caption_box.text_frame.paragraphs[0].font.color.rgb = self.theme["secondary"]
+                caption_box.text_frame.paragraphs[0].font.italic = True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to add visualization in two-column layout: {str(e)}")

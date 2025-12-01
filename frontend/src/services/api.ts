@@ -189,6 +189,15 @@ export const deleteDataset = async (id: string): Promise<void> => {
   await api.delete(`/datasets/${id}`)
 }
 
+export const importGoogleSheets = async (request: {
+  google_sheets_url: string
+  sheet_name?: string
+  access_token: string
+}): Promise<Dataset> => {
+  const { data } = await api.post('/datasets/import-google-sheets', request)
+  return data
+}
+
 // Dataset Groups
 export const createDatasetGroup = async (group: {
   name: string
