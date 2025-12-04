@@ -10,6 +10,9 @@ import { SpreadsheetView } from '@/components/canvas/SpreadsheetView'
 import { DashboardView } from '@/components/canvas/DashboardView'
 import { SchemaView } from '@/components/canvas/SchemaView'
 import { ReportView } from '@/components/canvas/ReportView'
+import { CanvasWorkspace } from '@/components/canvas/CanvasWorkspace'
+import { useAGUIStream } from '@/hooks/useAGUIStream'
+import { CanvasItem } from '@/types/canvas'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
@@ -19,7 +22,7 @@ import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2 } from 'lucide-react'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout } from 'lucide-react'
 import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult } from '@/services/api'
 import axios from '@/services/api'
 
@@ -44,8 +47,12 @@ export default function DatasetDetail() {
     }
   }, [id])
   const [messages, setMessages] = useState<Message[]>([])
-  const [currentView, setCurrentView] = useState<'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report'>('spreadsheet')
+  const [currentView, setCurrentView] = useState<'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas'>('spreadsheet')
   const [queryResult, setQueryResult] = useState<any>(null)
+
+  // Canvas mode state
+  const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
+  const [canvasMode, setCanvasMode] = useState(false)
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('auto')
   const [codePreview, setCodePreview] = useState<PythonAnalysisResult | null>(null)
   const [showCodeModal, setShowCodeModal] = useState(false)
@@ -83,6 +90,43 @@ export default function DatasetDetail() {
 
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
+
+  // AG-UI Stream for canvas mode
+  const { isStreaming, startStream } = useAGUIStream({
+    workspaceId: id || 'temp',
+    datasetId: id,
+    onItemCreate: (item) => {
+      setCanvasItems(prev => {
+        // Auto-position items below existing content
+        if (prev.length === 0) {
+          return [item as CanvasItem]
+        }
+
+        // Calculate max Y position from existing items
+        const maxY = Math.max(...prev.map(i => i.y + i.height))
+
+        // If this is a header (insight-note with query-header tag), position it with spacing
+        const isHeader = item.type === 'insight-note' &&
+                        (item.content as any)?.tags?.includes('query-header')
+
+        if (isHeader && prev.length > 0) {
+          // Add spacing between question groups
+          return [...prev, { ...item, y: maxY + 100 } as CanvasItem]
+        }
+
+        return [...prev, item as CanvasItem]
+      })
+    },
+    onComplete: () => {
+      console.log('Stream completed')
+    },
+    onError: (err) => {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ Error: ${err}`
+      }])
+    }
+  })
 
   // Check user's role and permissions
   const { data: userRole } = useQuery({
@@ -239,6 +283,14 @@ export default function DatasetDetail() {
   }
 
   const handleQuerySubmit = async (query: string, mode: AnalysisMode = 'auto') => {
+    // Handle canvas mode
+    if (canvasMode) {
+      setMessages((prev) => [...prev, { role: 'user', content: query }])
+      startStream(query)
+      setCurrentView('canvas')
+      return
+    }
+
     // Check for slash commands
     if (query.startsWith('/metadata ')) {
       const instruction = query.substring(10).trim()
@@ -627,7 +679,7 @@ export default function DatasetDetail() {
             datasetId={id}
             onQuerySubmit={handleQuerySubmit}
             messages={messages}
-            isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting}
+            isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting || isStreaming}
             analysisMode={analysisMode}
             onModeChange={setAnalysisMode}
             verboseMode={verboseMode}
@@ -662,6 +714,22 @@ export default function DatasetDetail() {
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button
+                  variant={canvasMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setCanvasMode(!canvasMode)
+                    if (!canvasMode) {
+                      setCurrentView('canvas')
+                    } else {
+                      setCurrentView('spreadsheet')
+                    }
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Layout className="h-4 w-4" />
+                  {canvasMode ? 'Canvas Mode' : 'Tabs Mode'}
+                </Button>
                 <IconButton
                   variant="default"
                   size="md"
@@ -713,51 +781,102 @@ export default function DatasetDetail() {
           </div>
         }
       >
-        {/* Tabs */}
-        <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden h-full">
-          <div className="border-b border-gray-200 bg-gray-50 px-4">
-            <TabsList className="bg-transparent">
-              <TabsTrigger value="spreadsheet" className="gap-2">
-                <FileSpreadsheet className="h-4 w-4" />
-                Spreadsheet
-              </TabsTrigger>
-              <TabsTrigger value="schema" className="gap-2">
-                <Table2 className="h-4 w-4" />
-                Schema
-              </TabsTrigger>
-              <TabsTrigger value="dashboard" className="gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Dashboard
-                {queryResult && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
-                    {queryResult.total_rows}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="report" className="gap-2">
-                <FileText className="h-4 w-4" />
-                Report
-                {deepResearchReport && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
-                    New
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="code" className="gap-2">
-                <Code2 className="h-4 w-4" />
-                Code
-                {lastExecution && (
-                  <span className={`ml-1 px-1.5 py-0.5 text-xs rounded ${
-                    lastExecution.result?.status === 'SUCCESS'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {lastExecution.result?.status || 'N/A'}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-          </div>
+        {/* Canvas Mode or Tabs */}
+        {canvasMode ? (
+          <CanvasWorkspace
+            workspaceId={id || 'temp'}
+            items={canvasItems}
+            onItemsChange={setCanvasItems}
+            onSave={async (name: string, description?: string) => {
+              try {
+                console.log('Saving workspace...', { name, description, dataset_id: id })
+                console.log('Token:', localStorage.getItem('access_token') ? 'Present' : 'Missing')
+
+                // Create workspace via API
+                const response = await axios.post(
+                  '/workspaces',
+                  {
+                    name,
+                    description,
+                    dataset_id: id
+                  }
+                )
+
+                console.log('Workspace created:', response.data)
+                const workspaceId = response.data.id
+
+                // Save each canvas item
+                console.log(`Saving ${canvasItems.length} canvas items...`)
+                for (const item of canvasItems) {
+                  await axios.post(
+                    `/workspaces/${workspaceId}/items`,
+                    {
+                      type: item.type,
+                      x: item.x,
+                      y: item.y,
+                      width: item.width,
+                      height: item.height,
+                      z_index: item.zIndex,
+                      content: item.content
+                    }
+                  )
+                }
+
+                console.log('All items saved successfully')
+                alert(`✅ Workspace "${name}" saved successfully!`)
+              } catch (error: any) {
+                console.error('Failed to save workspace:', error)
+                console.error('Error response:', error.response?.data)
+                console.error('Error status:', error.response?.status)
+                alert(`❌ Failed to save workspace: ${error.response?.data?.detail || error.message}`)
+              }
+            }}
+          />
+        ) : (
+          <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden h-full">
+            <div className="border-b border-gray-200 bg-gray-50 px-4">
+              <TabsList className="bg-transparent">
+                <TabsTrigger value="spreadsheet" className="gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Spreadsheet
+                </TabsTrigger>
+                <TabsTrigger value="schema" className="gap-2">
+                  <Table2 className="h-4 w-4" />
+                  Schema
+                </TabsTrigger>
+                <TabsTrigger value="dashboard" className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Dashboard
+                  {queryResult && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                      {queryResult.total_rows}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="report" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Report
+                  {deepResearchReport && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                      New
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="code" className="gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Code
+                  {lastExecution && (
+                    <span className={`ml-1 px-1.5 py-0.5 text-xs rounded ${
+                      lastExecution.result?.status === 'SUCCESS'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {lastExecution.result?.status || 'N/A'}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
           {/* Spreadsheet View - Always shows original dataset */}
           <TabsContent value="spreadsheet" className="flex-1 m-0 p-6 overflow-auto">
@@ -958,7 +1077,8 @@ export default function DatasetDetail() {
               </div>
             )}
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        )}
       </DataWorkspaceLayout>
     </>
   )

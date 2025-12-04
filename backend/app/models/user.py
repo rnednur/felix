@@ -41,6 +41,7 @@ class User(Base):
     owned_groups = relationship("DatasetGroup", back_populates="owner", foreign_keys="DatasetGroup.owner_id")
     group_memberships = relationship("DatasetGroupMember", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
+    workspaces = relationship("Workspace", back_populates="owner")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, role={self.role})>"
