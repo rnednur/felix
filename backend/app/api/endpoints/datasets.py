@@ -14,6 +14,7 @@ from app.services.storage_service import StorageService
 from app.services.analysis_service import AnalysisService
 from app.services.permission_service import PermissionService
 from app.services.google_drive_service import GoogleDriveService
+from app.services.spatial_service import SpatialService
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
@@ -306,3 +307,54 @@ async def import_google_sheets(
     }
 
     return response
+
+
+@router.get("/{dataset_id}/spatial-info")
+async def get_spatial_info(
+    dataset_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get spatial data information and Kepler.gl configuration for a dataset
+    Detects lat/lng columns, address columns, or geographic data
+    """
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.deleted_at.is_(None)
+    ).first()
+
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+
+    # Check permissions
+    if not PermissionService.can_access_dataset(db, current_user, dataset_id):
+        raise HTTPException(403, "Access denied")
+
+    storage = StorageService()
+    spatial_service = SpatialService()
+
+    try:
+        # Load dataset sample (first 1000 rows for detection)
+        df = storage.load_dataset(dataset_id)
+        sample = df.head(1000) if len(df) > 1000 else df
+
+        # Detect spatial columns
+        spatial_info = spatial_service.detect_spatial_columns(sample)
+
+        if spatial_info["has_spatial"]:
+            # Generate Kepler.gl config if coordinates detected
+            if spatial_info["type"] == "coordinates":
+                config = spatial_service.generate_kepler_config(spatial_info, sample)
+                spatial_info["default_config"] = config
+            else:
+                # For address/geographic data, indicate geocoding needed
+                spatial_info["default_config"] = {}
+                spatial_info["message"] = "Geocoding required - not yet implemented"
+
+        return spatial_info
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Failed to analyze spatial data: {str(e)}")
+

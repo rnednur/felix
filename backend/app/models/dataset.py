@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, Enum as SQLEnum, ForeignKey, BigInteger
+from sqlalchemy import Column, String, Integer, DateTime, Enum as SQLEnum, ForeignKey, BigInteger, Boolean, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -45,6 +45,10 @@ class Dataset(Base):
     row_count = Column(Integer, default=0)
     size_bytes = Column(BigInteger, default=0)
     dataset_version = Column(Integer, default=1)
+
+    # Spatial/Map metadata (for Talk2Map)
+    has_spatial_data = Column(Boolean, default=False, nullable=False)
+    spatial_config = Column(JSON, nullable=True)  # Stores detected columns and Kepler.gl config
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

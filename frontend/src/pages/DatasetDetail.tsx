@@ -14,6 +14,7 @@ import { CanvasWorkspace } from '@/components/canvas/CanvasWorkspace'
 import { useAGUIStream } from '@/hooks/useAGUIStream'
 import { CanvasItem } from '@/types/canvas'
 import { DatasetHub } from '@/components/dataset-hub/DatasetHub'
+import { MapView } from '@/components/map/MapView'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
@@ -23,7 +24,7 @@ import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles } from 'lucide-react'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles, Map as MapIcon } from 'lucide-react'
 import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult } from '@/services/api'
 import axios from '@/services/api'
 
@@ -48,8 +49,12 @@ export default function DatasetDetail() {
     }
   }, [id])
   const [messages, setMessages] = useState<Message[]>([])
-  const [currentView, setCurrentView] = useState<'hub' | 'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas'>('hub')
+  const [currentView, setCurrentView] = useState<'hub' | 'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas' | 'map'>('hub')
   const [queryResult, setQueryResult] = useState<any>(null)
+
+  // Spatial/Map state
+  const [spatialColumns, setSpatialColumns] = useState<any>(null)
+  const [mapConfig, setMapConfig] = useState<any>(null)
 
   // Canvas mode state
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
@@ -153,6 +158,26 @@ export default function DatasetDetail() {
     },
     enabled: !!id
   })
+
+  // Fetch spatial info for map visualization
+  useEffect(() => {
+    if (!id) return
+
+    const fetchSpatialInfo = async () => {
+      try {
+        const { data } = await axios.get(`/datasets/${id}/spatial-info`)
+        if (data.has_spatial) {
+          console.log('Spatial data detected:', data)
+          setSpatialColumns(data.columns)
+          setMapConfig(data.default_config)
+        }
+      } catch (error) {
+        console.error('Error fetching spatial info:', error)
+      }
+    }
+
+    fetchSpatialInfo()
+  }, [id])
 
   // Removed auto-describe - users can click "Describe Dataset" button to open modal
 
@@ -1037,6 +1062,15 @@ export default function DatasetDetail() {
                     </span>
                   )}
                 </TabsTrigger>
+                {spatialColumns && (
+                  <TabsTrigger value="map" className="gap-2">
+                    <MapIcon className="h-4 w-4" />
+                    Map
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                      {queryResult ? queryResult.total_rows : preview?.rows?.length || 0}
+                    </span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
 
@@ -1245,6 +1279,24 @@ export default function DatasetDetail() {
                 <Code2 className="h-16 w-16 mb-4 text-gray-300" />
                 <p className="text-lg font-medium">No Python code executed yet</p>
                 <p className="text-sm mt-2">Switch to Python mode and run some code to see execution details here</p>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Map View - Kepler.gl visualization */}
+          <TabsContent value="map" className="flex-1 m-0 overflow-hidden">
+            {spatialColumns ? (
+              <MapView
+                datasetId={id!}
+                data={queryResult?.rows || preview?.rows || []}
+                spatialColumns={spatialColumns}
+                config={mapConfig}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <MapIcon className="h-16 w-16 mb-4 text-gray-300" />
+                <p className="text-lg font-medium">No spatial data detected</p>
+                <p className="text-sm mt-2">This dataset doesn't have latitude/longitude columns</p>
               </div>
             )}
           </TabsContent>
