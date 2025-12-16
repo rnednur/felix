@@ -50,6 +50,9 @@ def create_workspace(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new workspace"""
+    print(f"Creating workspace for user: {current_user.email} (id: {current_user.id})")
+    print(f"Workspace data: {workspace_in.dict()}")
+
     workspace = Workspace(
         name=workspace_in.name,
         description=workspace_in.description,
@@ -60,6 +63,7 @@ def create_workspace(
     db.add(workspace)
     db.commit()
     db.refresh(workspace)
+    print(f"Workspace created successfully: {workspace.id}")
     return workspace
 
 

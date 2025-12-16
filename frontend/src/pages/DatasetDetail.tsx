@@ -13,6 +13,7 @@ import { ReportView } from '@/components/canvas/ReportView'
 import { CanvasWorkspace } from '@/components/canvas/CanvasWorkspace'
 import { useAGUIStream } from '@/hooks/useAGUIStream'
 import { CanvasItem } from '@/types/canvas'
+import { DatasetHub } from '@/components/dataset-hub/DatasetHub'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
@@ -22,7 +23,7 @@ import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout } from 'lucide-react'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles } from 'lucide-react'
 import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult } from '@/services/api'
 import axios from '@/services/api'
 
@@ -47,12 +48,14 @@ export default function DatasetDetail() {
     }
   }, [id])
   const [messages, setMessages] = useState<Message[]>([])
-  const [currentView, setCurrentView] = useState<'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas'>('spreadsheet')
+  const [currentView, setCurrentView] = useState<'hub' | 'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas'>('hub')
   const [queryResult, setQueryResult] = useState<any>(null)
 
   // Canvas mode state
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
   const [canvasMode, setCanvasMode] = useState(false)
+  const [showLoadDialog, setShowLoadDialog] = useState(false)
+  const [savedWorkspaces, setSavedWorkspaces] = useState<any[]>([])
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('auto')
   const [codePreview, setCodePreview] = useState<PythonAnalysisResult | null>(null)
   const [showCodeModal, setShowCodeModal] = useState(false)
@@ -97,24 +100,37 @@ export default function DatasetDetail() {
     datasetId: id,
     onItemCreate: (item) => {
       setCanvasItems(prev => {
-        // Auto-position items below existing content
+        // First item - use backend position
         if (prev.length === 0) {
           return [item as CanvasItem]
         }
 
-        // Calculate max Y position from existing items
-        const maxY = Math.max(...prev.map(i => i.y + i.height))
-
-        // If this is a header (insight-note with query-header tag), position it with spacing
+        // Check if this is a header (start of new question group)
         const isHeader = item.type === 'insight-note' &&
                         (item.content as any)?.tags?.includes('query-header')
 
-        if (isHeader && prev.length > 0) {
-          // Add spacing between question groups
-          return [...prev, { ...item, y: maxY + 100 } as CanvasItem]
+        if (isHeader) {
+          // Find the bottom of the last group
+          const maxY = Math.max(...prev.map(i => i.y + i.height))
+          // Start new group with 150px spacing
+          return [...prev, { ...item, y: maxY + 150 } as CanvasItem]
         }
 
-        return [...prev, item as CanvasItem]
+        // For non-header items, find the last header to determine group base Y
+        const headers = prev.filter(p =>
+          p.type === 'insight-note' && (p.content as any)?.tags?.includes('query-header')
+        )
+        const lastHeader = headers[headers.length - 1]
+        const baseY = lastHeader ? lastHeader.y : 50
+
+        // Adjust Y position relative to the current group's base
+        // Keep the backend's relative positioning within the group
+        const adjustedItem = {
+          ...item,
+          y: baseY + (item.y - 100) // Backend uses base_y = 100, adjust to actual base
+        } as CanvasItem
+
+        return [...prev, adjustedItem]
       })
     },
     onComplete: () => {
@@ -282,7 +298,69 @@ export default function DatasetDetail() {
     }
   }
 
+  const handleLoadWorkspace = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        alert('Please log in to load workspaces')
+        return
+      }
+
+      // Fetch workspaces for this dataset
+      const response = await axios.get('/workspaces', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      // Filter by dataset_id if needed
+      const workspacesForDataset = response.data.filter((ws: any) => ws.dataset_id === id)
+      setSavedWorkspaces(workspacesForDataset)
+      setShowLoadDialog(true)
+    } catch (error: any) {
+      console.error('Failed to load workspaces:', error)
+      alert(`Failed to load workspaces: ${error.response?.data?.detail || error.message}`)
+    }
+  }
+
+  const handleSelectWorkspace = async (workspaceId: string) => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) return
+
+      // Fetch workspace with items
+      const response = await axios.get(`/workspaces/${workspaceId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      const workspace = response.data
+
+      // Convert backend format to frontend format
+      const loadedItems: CanvasItem[] = workspace.items.map((item: any) => ({
+        id: item.id,
+        workspaceId: workspace.id,
+        type: item.type,
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height,
+        zIndex: item.z_index,
+        content: item.content
+      }))
+
+      setCanvasItems(loadedItems)
+      setShowLoadDialog(false)
+      alert(`✅ Loaded workspace: ${workspace.name}`)
+    } catch (error: any) {
+      console.error('Failed to load workspace:', error)
+      alert(`Failed to load workspace: ${error.response?.data?.detail || error.message}`)
+    }
+  }
+
   const handleQuerySubmit = async (query: string, mode: AnalysisMode = 'auto') => {
+    // Switch away from hub view when query is submitted
+    if (currentView === 'hub') {
+      setCurrentView('dashboard')
+    }
+
     // Handle canvas mode
     if (canvasMode) {
       setMessages((prev) => [...prev, { role: 'user', content: query }])
@@ -673,6 +751,69 @@ export default function DatasetDetail() {
         }}
       />
 
+      {/* Load Workspace Dialog */}
+      {showLoadDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Load Workspace</h3>
+              <button
+                onClick={() => setShowLoadDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {savedWorkspaces.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <FolderOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium">No saved workspaces found</p>
+                  <p className="text-sm mt-1">Create your first workspace by saving the current canvas</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedWorkspaces.map((workspace) => (
+                    <button
+                      key={workspace.id}
+                      onClick={() => handleSelectWorkspace(workspace.id)}
+                      className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900">{workspace.name}</h4>
+                          {workspace.description && (
+                            <p className="text-sm text-gray-600 mt-1">{workspace.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span>Created: {new Date(workspace.created_at).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span>Updated: {new Date(workspace.updated_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <div className="text-blue-600 ml-4">
+                          <FolderOpen className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowLoadDialog(false)}
+                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <DataWorkspaceLayout
         sidebar={
           <ChatSidebar
@@ -787,20 +928,32 @@ export default function DatasetDetail() {
             workspaceId={id || 'temp'}
             items={canvasItems}
             onItemsChange={setCanvasItems}
+            onLoad={handleLoadWorkspace}
             onSave={async (name: string, description?: string) => {
               try {
                 console.log('Saving workspace...', { name, description, dataset_id: id })
-                console.log('Token:', localStorage.getItem('access_token') ? 'Present' : 'Missing')
+                const token = localStorage.getItem('access_token')
+                console.log('Token:', token ? `Present (${token.substring(0, 20)}...)` : 'Missing')
 
-                // Create workspace via API
+                if (!token) {
+                  throw new Error('No authentication token found. Please log in again.')
+                }
+
+                // Create workspace via API with explicit auth header
                 const response = await axios.post(
                   '/workspaces',
                   {
                     name,
                     description,
                     dataset_id: id
+                  },
+                  {
+                    headers: {
+                      Authorization: `Bearer ${token}`
+                    }
                   }
                 )
+                console.log('Request headers:', response.config.headers)
 
                 console.log('Workspace created:', response.data)
                 const workspaceId = response.data.id
@@ -818,6 +971,11 @@ export default function DatasetDetail() {
                       height: item.height,
                       z_index: item.zIndex,
                       content: item.content
+                    },
+                    {
+                      headers: {
+                        Authorization: `Bearer ${token}`
+                      }
                     }
                   )
                 }
@@ -836,6 +994,10 @@ export default function DatasetDetail() {
           <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden h-full">
             <div className="border-b border-gray-200 bg-gray-50 px-4">
               <TabsList className="bg-transparent">
+                <TabsTrigger value="hub" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Home
+                </TabsTrigger>
                 <TabsTrigger value="spreadsheet" className="gap-2">
                   <FileSpreadsheet className="h-4 w-4" />
                   Spreadsheet
@@ -877,6 +1039,15 @@ export default function DatasetDetail() {
                 </TabsTrigger>
               </TabsList>
             </div>
+
+          {/* Hub View - AI Suggestions and Quick Start */}
+          <TabsContent value="hub" className="flex-1 m-0 overflow-hidden">
+            <DatasetHub
+              datasetId={id!}
+              datasetName={dataset.name}
+              onQuerySelect={handleQuerySubmit}
+            />
+          </TabsContent>
 
           {/* Spreadsheet View - Always shows original dataset */}
           <TabsContent value="spreadsheet" className="flex-1 m-0 p-6 overflow-auto">

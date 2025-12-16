@@ -4,13 +4,14 @@ import { QueryResultItem } from './QueryResultItem'
 import { ChartItem } from './ChartItem'
 import { CodeBlockItem } from './CodeBlockItem'
 import { InsightNoteItem } from './InsightNoteItem'
-import { Plus, Save, Download, Trash2, X } from 'lucide-react'
+import { Plus, Save, Download, Trash2, X, FolderOpen, LayoutGrid } from 'lucide-react'
 
 interface CanvasWorkspaceProps {
   workspaceId: string
   items: CanvasItem[]
   onItemsChange: (items: CanvasItem[]) => void
   onSave: (name: string, description?: string) => void
+  onLoad?: () => void
 }
 
 // Simplified draggable item component (proof of concept)
@@ -171,7 +172,8 @@ export function CanvasWorkspace({
   workspaceId,
   items,
   onItemsChange,
-  onSave
+  onSave,
+  onLoad
 }: CanvasWorkspaceProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -215,6 +217,72 @@ export function CanvasWorkspace({
       setWorkspaceName('')
       setWorkspaceDescription('')
     }
+  }
+
+  const handleAutoArrange = () => {
+    if (items.length === 0) return
+
+    // Group items by question (headers with their related items)
+    const groups: CanvasItem[][] = []
+    let currentGroup: CanvasItem[] = []
+
+    items.forEach(item => {
+      const isHeader = item.type === 'insight-note' &&
+                      (item.content as any)?.tags?.includes('query-header')
+
+      if (isHeader && currentGroup.length > 0) {
+        groups.push(currentGroup)
+        currentGroup = [item]
+      } else {
+        currentGroup.push(item)
+      }
+    })
+    if (currentGroup.length > 0) groups.push(currentGroup)
+
+    // Arrange each group with proper spacing
+    let currentY = 50
+    const arrangedItems: CanvasItem[] = []
+
+    groups.forEach(group => {
+      // Find header, code, results, and charts
+      const header = group.find(i => i.type === 'insight-note' && (i.content as any)?.tags?.includes('query-header'))
+      const code = group.find(i => i.type === 'code-block')
+      const results = group.find(i => i.type === 'query-result')
+      const charts = group.filter(i => i.type === 'chart')
+
+      // Position header
+      if (header) {
+        arrangedItems.push({ ...header, x: 50, y: currentY, width: 1400, height: 80 })
+        currentY += 100
+      }
+
+      // Position code and results side by side
+      if (code) {
+        arrangedItems.push({ ...code, x: 50, y: currentY, width: 600, height: 250 })
+      }
+      if (results) {
+        arrangedItems.push({ ...results, x: 700, y: currentY, width: 700, height: 400 })
+      }
+      currentY += 270
+
+      // Position charts in a row
+      charts.forEach((chart, i) => {
+        arrangedItems.push({
+          ...chart,
+          x: 50 + (i * 650),
+          y: currentY,
+          width: 600,
+          height: 400
+        })
+      })
+
+      if (charts.length > 0) currentY += 450
+
+      // Add spacing between groups
+      currentY += 100
+    })
+
+    onItemsChange(arrangedItems)
   }
 
   return (
@@ -295,6 +363,16 @@ export function CanvasWorkspace({
           {items.length} {items.length === 1 ? 'item' : 'items'}
         </span>
         <div className="ml-auto flex gap-2">
+          {items.length > 1 && (
+            <button
+              onClick={handleAutoArrange}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100"
+              title="Auto-arrange all items"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Auto-Arrange
+            </button>
+          )}
           {items.length > 0 && (
             <button
               onClick={() => {
@@ -306,6 +384,15 @@ export function CanvasWorkspace({
             >
               <Trash2 className="h-4 w-4" />
               Clear All
+            </button>
+          )}
+          {onLoad && (
+            <button
+              onClick={onLoad}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <FolderOpen className="h-4 w-4" />
+              Load
             </button>
           )}
           <button
