@@ -21,6 +21,8 @@ import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel
 import { ShareModal } from '@/components/sharing/ShareModal'
 import { PlanEditor } from '@/components/research/PlanEditor'
 import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal'
+import { ScoutingDialog } from '@/components/scouting/ScoutingDialog'
+import { ScoutingResults } from '@/components/scouting/ScoutingResults'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -95,6 +97,11 @@ export default function DatasetDetail() {
 
   // Sharing
   const [showShareModal, setShowShareModal] = useState(false)
+
+  // Data Scouting
+  const [showScoutingDialog, setShowScoutingDialog] = useState(false)
+  const [scoutingResult, setScoutingResult] = useState<any>(null)
+  const [showScoutingResults, setShowScoutingResults] = useState(false)
 
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
@@ -736,6 +743,27 @@ export default function DatasetDetail() {
         />
       )}
 
+      {/* Data Scouting Dialog */}
+      {showScoutingDialog && (
+        <ScoutingDialog
+          datasetId={id!}
+          datasetName={dataset?.name || 'Dataset'}
+          onClose={() => setShowScoutingDialog(false)}
+          onSuccess={(result) => {
+            setScoutingResult(result)
+            setShowScoutingResults(true)
+          }}
+        />
+      )}
+
+      {/* Scouting Results */}
+      {showScoutingResults && scoutingResult && (
+        <ScoutingResults
+          result={scoutingResult}
+          onClose={() => setShowScoutingResults(false)}
+        />
+      )}
+
       {/* Dataset Settings Panel */}
       {showSettingsPanel && dataset && schema && (
         <DatasetSettingsPanel
@@ -907,6 +935,15 @@ export default function DatasetDetail() {
                   }}
                 >
                   <Info className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Data Scouting Agent"
+                  onClick={() => setShowScoutingDialog(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <Sparkles className="h-5 w-5" />
                 </IconButton>
                 <IconButton
                   variant="default"

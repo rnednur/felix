@@ -49,8 +49,15 @@ class SpatialService:
         lng_col = self._find_column(df, lng_patterns)
 
         if lat_col and lng_col:
+            print(f"[SPATIAL] Found potential coordinate columns: {lat_col}, {lng_col}")
+            logger.info(f"Found potential coordinate columns: {lat_col}, {lng_col}")
             # Validate numeric and in valid range
-            if self._validate_coordinates(df, lat_col, lng_col):
+            is_valid = self._validate_coordinates(df, lat_col, lng_col)
+            print(f"[SPATIAL] Coordinate validation result: {is_valid}")
+            logger.info(f"Coordinate validation result: {is_valid}")
+
+            if is_valid:
+                print(f"[SPATIAL] ✓ Detected coordinate columns: {lat_col}, {lng_col}")
                 logger.info(f"Detected coordinate columns: {lat_col}, {lng_col}")
                 result.update({
                     "has_spatial": True,
@@ -60,6 +67,9 @@ class SpatialService:
                     "geocoding_required": False
                 })
                 return result
+            else:
+                print(f"[SPATIAL] ✗ Coordinate columns found but validation failed: {lat_col}, {lng_col}")
+                logger.warning(f"Coordinate columns found but validation failed: {lat_col}, {lng_col}")
 
         # Pattern 2: Single address column
         address_patterns = ['address', 'location', 'addr', 'street', 'place']
@@ -101,24 +111,49 @@ class SpatialService:
         return result
 
     def _find_column(self, df: pd.DataFrame, patterns: List[str]) -> Optional[str]:
-        """Find column matching any pattern (case-insensitive, exact or contains)"""
+        """Find column matching any pattern (case-insensitive, exact match first, then contains)"""
+        # First pass: exact match
         for col in df.columns:
             col_lower = col.lower().strip()
             for pattern in patterns:
-                if pattern == col_lower or pattern in col_lower:
+                if pattern == col_lower:
                     return col
+
+        # Second pass: contains match (but only for multi-character patterns)
+        for col in df.columns:
+            col_lower = col.lower().strip()
+            for pattern in patterns:
+                # Only match if pattern is in the column name AND pattern is meaningful (3+ chars)
+                if len(pattern) >= 3 and pattern in col_lower:
+                    return col
+
         return None
 
     def _validate_coordinates(self, df: pd.DataFrame, lat_col: str, lng_col: str) -> bool:
         """Check if lat/lng are numeric and in valid ranges"""
         try:
+            # Sample first few values for logging
+            sample_lat = df[lat_col].head(3).tolist()
+            sample_lng = df[lng_col].head(3).tolist()
+            print(f"[SPATIAL] Sample lat values: {sample_lat}")
+            print(f"[SPATIAL] Sample lng values: {sample_lng}")
+            logger.info(f"Sample lat values: {sample_lat}")
+            logger.info(f"Sample lng values: {sample_lng}")
+
             # Convert to numeric, coerce errors to NaN
             lat = pd.to_numeric(df[lat_col], errors='coerce')
             lng = pd.to_numeric(df[lng_col], errors='coerce')
 
+            # Count NaN values
+            lat_nan_count = lat.isna().sum()
+            lng_nan_count = lng.isna().sum()
+            print(f"[SPATIAL] NaN counts - lat: {lat_nan_count}/{len(lat)}, lng: {lng_nan_count}/{len(lng)}")
+            logger.info(f"NaN counts - lat: {lat_nan_count}/{len(lat)}, lng: {lng_nan_count}/{len(lng)}")
+
             # Drop NaN values for validation
             valid_pairs = df[[lat_col, lng_col]].dropna()
             if len(valid_pairs) == 0:
+                logger.warning("No valid coordinate pairs found (all NaN)")
                 return False
 
             lat_valid = pd.to_numeric(valid_pairs[lat_col], errors='coerce')
@@ -128,13 +163,20 @@ class SpatialService:
             valid_lat = (lat_valid >= -90) & (lat_valid <= 90)
             valid_lng = (lng_valid >= -180) & (lng_valid <= 180)
 
-            # At least 80% should be valid
-            validity_ratio = (valid_lat & valid_lng).sum() / len(valid_pairs)
+            # Count how many are in valid ranges
+            valid_count = (valid_lat & valid_lng).sum()
+            total_count = len(valid_pairs)
 
-            logger.debug(f"Coordinate validation: {validity_ratio:.2%} valid pairs")
+            # At least 80% should be valid
+            validity_ratio = valid_count / total_count
+
+            print(f"[SPATIAL] Coordinate validation: {valid_count}/{total_count} valid pairs ({validity_ratio:.2%})")
+            logger.info(f"Coordinate validation: {valid_count}/{total_count} valid pairs ({validity_ratio:.2%})")
             return validity_ratio > 0.8
         except Exception as e:
             logger.error(f"Error validating coordinates: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def _calculate_bbox(self, df: pd.DataFrame, lat_col: str, lng_col: str) -> Dict:

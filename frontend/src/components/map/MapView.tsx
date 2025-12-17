@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useCallback } from 'react'
 import { useDispatch } from 'react-redux'
 import KeplerGl from '@kepler.gl/components'
 import { addDataToMap } from '@kepler.gl/actions'
@@ -23,23 +23,37 @@ export function MapView({
   onSaveConfig
 }: MapViewProps) {
   const dispatch = useDispatch()
-  const mapLoaded = useRef(false)
+  const dataLoadedRef = useRef(false)
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
-  useEffect(() => {
-    if (!data || data.length === 0 || mapLoaded.current) {
-      return
-    }
-
+  const loadDataToMap = useCallback(() => {
     try {
-      // Convert data to Kepler.gl format
-      const fields = Object.keys(data[0] || {}).map(name => ({
-        name,
-        type: inferFieldType(data[0][name])
-      }))
+      if (!data || data.length === 0) {
+        console.log('MapView: No data to load')
+        return
+      }
 
-      const rows = data.map(row => Object.values(row))
+      // Convert data to Kepler.gl format with proper field types
+      const columnNames = Object.keys(data[0] || {})
+      const fields = columnNames.map(name => {
+        const value = data[0][name]
+        return {
+          name,
+          type: inferFieldType(value),
+          format: ''
+        }
+      })
+
+      // Convert rows to arrays in the same order as fields
+      const rows = data.map(row =>
+        columnNames.map(col => {
+          const value = row[col]
+          // Handle null/undefined values
+          if (value === null || value === undefined) return null
+          return value
+        })
+      )
 
       const keplerData = {
         fields,
@@ -50,33 +64,70 @@ export function MapView({
         datasetId,
         rowCount: rows.length,
         fieldCount: fields.length,
-        spatialColumns
+        spatialColumns,
+        sampleRow: data[0],
+        keplerFields: fields,
+        sampleKeplerRow: rows[0]
       })
 
       // Dispatch action to add data to Kepler
-      dispatch(
-        addDataToMap({
-          datasets: {
-            info: {
-              label: `Dataset ${datasetId}`,
-              id: datasetId
-            },
-            data: keplerData
+      const addDataAction = addDataToMap({
+        datasets: {
+          info: {
+            label: `Dataset ${datasetId}`,
+            id: datasetId
           },
-          options: {
-            centerMap: true,
-            readOnly: false,
-            keepExistingConfig: false
-          },
-          config: config || undefined
-        })
-      )
+          data: keplerData
+        },
+        options: {
+          centerMap: true,
+          readOnly: false,
+          keepExistingConfig: false
+        },
+        config: config || undefined
+      })
 
-      mapLoaded.current = true
+      // Dispatch with the correct map instance ID
+      dispatch({
+        ...addDataAction,
+        meta: {
+          ...addDataAction.meta,
+          mapId: 'map'  // Must match the KeplerGl id prop
+        }
+      })
+
+      dataLoadedRef.current = true
+      console.log('MapView: Data dispatch complete')
     } catch (error) {
       console.error('Error loading data into Kepler.gl:', error)
+      console.error('Error details:', error)
     }
   }, [data, datasetId, spatialColumns, config, dispatch])
+
+  useEffect(() => {
+    // Reset loaded flag when data changes
+    dataLoadedRef.current = false
+  }, [datasetId])
+
+  useEffect(() => {
+    // Only load data once
+    if (dataLoadedRef.current) {
+      console.log('MapView: Data already loaded, skipping')
+      return
+    }
+
+    if (!data || data.length === 0) {
+      console.log('MapView: No data to load', { dataLength: data?.length })
+      return
+    }
+
+    // Wait for Kepler to fully mount
+    const timer = setTimeout(() => {
+      loadDataToMap()
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [data, loadDataToMap])
 
   if (!MAPBOX_TOKEN) {
     return (
@@ -140,6 +191,7 @@ export function MapView({
 
 /**
  * Infer Kepler.gl field type from value
+ * Valid types: integer, real, boolean, date, timestamp, string, geometry, geojson
  */
 function inferFieldType(value: any): string {
   if (value === null || value === undefined) return 'string'
@@ -147,6 +199,7 @@ function inferFieldType(value: any): string {
   const type = typeof value
 
   if (type === 'number') {
+    // Kepler.gl expects 'integer' or 'real', not 'number'
     return Number.isInteger(value) ? 'integer' : 'real'
   }
 
