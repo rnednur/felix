@@ -4,6 +4,7 @@ import {
   getDataset,
   listDatasets,
   getDatasetPreview,
+  getDatasetAllRows,
   getDatasetSchema,
   deleteDataset,
   importGoogleSheets,
@@ -29,6 +30,14 @@ export function useDatasetPreview(id: string) {
     queryKey: ['dataset-preview', id],
     queryFn: () => getDatasetPreview(id),
     enabled: !!id,
+  })
+}
+
+export function useDatasetAllRows(id: string, enabled: boolean = false) {
+  return useQuery({
+    queryKey: ['dataset-all-rows', id],
+    queryFn: () => getDatasetAllRows(id),
+    enabled: !!id && enabled,
   })
 }
 

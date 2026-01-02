@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useDataset, useDatasetPreview, useDatasetSchema } from '@/hooks/useDatasets'
+import { useDataset, useDatasetPreview, useDatasetAllRows, useDatasetSchema } from '@/hooks/useDatasets'
 import { useNLQuery } from '@/hooks/useQuery'
 import { useVisualizationSuggestions } from '@/hooks/useVisualization'
 import { ChatSidebar, type AnalysisMode } from '@/components/chat/ChatSidebar'
@@ -44,6 +44,14 @@ export default function DatasetDetail() {
   const { data: preview } = useDatasetPreview(id!)
   const { data: schema } = useDatasetSchema(id!)
 
+  // Spatial/Map state
+  const [spatialColumns, setSpatialColumns] = useState<any>(null)
+  const [mapConfig, setMapConfig] = useState<any>(null)
+  const [showAllMapPoints, setShowAllMapPoints] = useState(false)
+
+  // Fetch all rows only when showAllMapPoints is true
+  const { data: allRows, isLoading: isLoadingAllRows } = useDatasetAllRows(id!, showAllMapPoints)
+
   // Save the current dataset ID to localStorage for "back" navigation
   useEffect(() => {
     if (id) {
@@ -53,10 +61,6 @@ export default function DatasetDetail() {
   const [messages, setMessages] = useState<Message[]>([])
   const [currentView, setCurrentView] = useState<'hub' | 'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas' | 'map'>('hub')
   const [queryResult, setQueryResult] = useState<any>(null)
-
-  // Spatial/Map state
-  const [spatialColumns, setSpatialColumns] = useState<any>(null)
-  const [mapConfig, setMapConfig] = useState<any>(null)
 
   // Canvas mode state
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
@@ -1323,12 +1327,45 @@ export default function DatasetDetail() {
           {/* Map View - Kepler.gl visualization */}
           <TabsContent value="map" className="flex-1 m-0 overflow-hidden">
             {spatialColumns ? (
-              <MapView
-                datasetId={id!}
-                data={queryResult?.rows || preview?.rows || []}
-                spatialColumns={spatialColumns}
-                config={mapConfig}
-              />
+              <div className="relative h-full">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[999] flex gap-2">
+                  {queryResult && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setQueryResult(null)}
+                      className="shadow-xl bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+                    >
+                      Reset Filter
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllMapPoints(!showAllMapPoints)}
+                    disabled={isLoadingAllRows}
+                    className={`shadow-xl border border-gray-300 ${
+                      showAllMapPoints
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {isLoadingAllRows ? (
+                      <>Loading...</>
+                    ) : showAllMapPoints ? (
+                      <>✓ All Points ({dataset?.row_count.toLocaleString()})</>
+                    ) : (
+                      <>Preview (100)</>
+                    )}
+                  </Button>
+                </div>
+                <MapView
+                  datasetId={id!}
+                  data={queryResult?.rows || (showAllMapPoints && allRows ? allRows.rows : preview?.rows) || []}
+                  spatialColumns={spatialColumns}
+                  config={mapConfig}
+                />
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-gray-500">
                 <MapIcon className="h-16 w-16 mb-4 text-gray-300" />

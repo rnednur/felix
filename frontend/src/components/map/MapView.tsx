@@ -24,6 +24,7 @@ export function MapView({
 }: MapViewProps) {
   const dispatch = useDispatch()
   const dataLoadedRef = useRef(false)
+  const previousDataLengthRef = useRef(0)
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
@@ -71,11 +72,14 @@ export function MapView({
       })
 
       // Dispatch action to add data to Kepler
+      // Use a unique dataset ID based on data length to force refresh
+      const uniqueDatasetId = `${datasetId}-${data.length}`
+
       const addDataAction = addDataToMap({
         datasets: {
           info: {
-            label: `Dataset ${datasetId}`,
-            id: datasetId
+            label: `Dataset ${datasetId} (${data.length} rows)`,
+            id: uniqueDatasetId
           },
           data: keplerData
         },
@@ -97,6 +101,7 @@ export function MapView({
       })
 
       dataLoadedRef.current = true
+      previousDataLengthRef.current = data.length
       console.log('MapView: Data dispatch complete')
     } catch (error) {
       console.error('Error loading data into Kepler.gl:', error)
@@ -105,12 +110,24 @@ export function MapView({
   }, [data, datasetId, spatialColumns, config, dispatch])
 
   useEffect(() => {
-    // Reset loaded flag when data changes
+    // Reset loaded flag when dataset changes or data length changes significantly
+    const dataLength = data?.length || 0
+    if (previousDataLengthRef.current !== dataLength) {
+      console.log('MapView: Data length changed, will reload', {
+        previous: previousDataLengthRef.current,
+        current: dataLength
+      })
+      dataLoadedRef.current = false
+    }
+  }, [data])
+
+  useEffect(() => {
+    // Reset when dataset changes
     dataLoadedRef.current = false
   }, [datasetId])
 
   useEffect(() => {
-    // Only load data once
+    // Only load data once per data change
     if (dataLoadedRef.current) {
       console.log('MapView: Data already loaded, skipping')
       return

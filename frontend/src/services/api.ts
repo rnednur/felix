@@ -175,8 +175,18 @@ export const listDatasets = async (): Promise<Dataset[]> => {
   return data
 }
 
-export const getDatasetPreview = async (id: string) => {
-  const { data } = await api.get(`/datasets/${id}/preview`)
+export const getDatasetPreview = async (id: string, limit: number = 100) => {
+  const { data } = await api.get(`/datasets/${id}/preview`, {
+    params: { limit }
+  })
+  return data
+}
+
+export const getDatasetAllRows = async (id: string) => {
+  // Use preview endpoint with very high limit to get all rows
+  const { data } = await api.get(`/datasets/${id}/preview`, {
+    params: { limit: 1000000 }  // Large enough for most datasets
+  })
   return data
 }
 
