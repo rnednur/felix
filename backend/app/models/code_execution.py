@@ -30,7 +30,7 @@ class CodeExecution(Base):
 
     # Input
     nl_input = Column(Text, nullable=False)  # Natural language query
-    mode = Column(SQLEnum(ExecutionMode), nullable=False)
+    mode = Column(SQLEnum(ExecutionMode, values_callable=lambda x: [e.value for e in x]), nullable=False)
 
     # Generated code
     generated_code = Column(Text, nullable=True)

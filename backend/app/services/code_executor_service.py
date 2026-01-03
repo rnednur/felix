@@ -20,7 +20,7 @@ class CodeExecutorService:
     """Safely execute Python code with sandboxing and resource limits"""
 
     def __init__(self):
-        self.max_timeout_seconds = 120  # 2 minutes max
+        self.max_timeout_seconds = 300  # 5 minutes max (increased for ML tasks)
         self.max_memory_mb = 1024  # 1GB max
         self.allowed_packages = [
             'scikit-learn',
@@ -167,8 +167,14 @@ class CodeExecutorService:
     ) -> Dict[str, Any]:
         """Execute Python code in a sandboxed environment"""
 
+        # Auto-detect if this is ML code and adjust timeout
+        is_ml_task = any(kw in code for kw in ['fit(', 'train_test_split', 'GridSearchCV', 'cross_val_score'])
+
         if timeout_sec is None:
-            timeout_sec = 60  # Default 1 minute
+            if is_ml_task:
+                timeout_sec = 180  # 3 minutes for ML tasks
+            else:
+                timeout_sec = 60  # 1 minute for regular tasks
 
         if timeout_sec > self.max_timeout_seconds:
             timeout_sec = self.max_timeout_seconds

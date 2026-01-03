@@ -388,3 +388,40 @@ async def ai_create_rules(
     except Exception as e:
         print(f"AI rules creation error: {str(e)}")
         raise HTTPException(500, f"Failed to create rules: {str(e)}")
+
+
+@router.post("/datasets/{dataset_id}/ai-describe-columns")
+async def ai_describe_columns(
+    dataset_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Use AI to automatically generate descriptions for all columns based on their
+    names, data types, ranges, and categorical values.
+
+    Only provides suggestions for columns where descriptions add meaningful value
+    beyond what's self-explanatory.
+    """
+    # Verify dataset exists
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.deleted_at.is_(None)
+    ).first()
+
+    if not dataset:
+        raise HTTPException(404, "Dataset not found")
+
+    try:
+        service = AIMetadataService(db)
+
+        # Generate column descriptions
+        descriptions = await service.generate_column_descriptions(dataset_id)
+
+        return {
+            "success": True,
+            "message": f"Generated descriptions for {len(descriptions)} columns",
+            "suggestions": descriptions
+        }
+    except Exception as e:
+        print(f"AI column description error: {str(e)}")
+        raise HTTPException(500, f"Failed to generate descriptions: {str(e)}")

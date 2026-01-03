@@ -87,11 +87,16 @@ async def generate_python_code(
 
     # Create code execution record
     execution_id = str(uuid.uuid4())
+
+    # Normalize mode to lowercase for enum compatibility
+    mode_str = str(result.get('mode', 'python')).lower()
+    print(f"🔍 DEBUG: Original mode from result: '{result.get('mode')}', normalized: '{mode_str}'")
+
     code_execution = CodeExecution(
         id=execution_id,
         dataset_id=request.dataset_id,
         nl_input=request.query,
-        mode=ExecutionMode(result['mode']),
+        mode=ExecutionMode(mode_str),
         generated_code=result['code'],
         execution_status=ExecutionStatus.PENDING,
         code_metadata=result

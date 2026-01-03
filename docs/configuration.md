@@ -32,8 +32,8 @@ TRANSFORMERS_OFFLINE=1
 Configure `OPENROUTER_MODEL` with any OpenRouter-supported model:
 
 **Recommended Models**:
-- `anthropic/claude-3.5-sonnet` - Best quality (default)
-- `anthropic/claude-3-opus` - Highest quality, slower
+- `anthropic/claude-4.5-sonnet` - Best quality (default)
+- `anthropic/claude-4.5-opus` - Highest quality, slower
 - `openai/gpt-4-turbo` - Very good, faster
 - `google/gemini-2.5-flash` - Fast and cheap
 - `openai/gpt-3.5-turbo` - Cheapest, lower quality

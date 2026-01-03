@@ -1,10 +1,18 @@
-import { Download, FileText, Printer } from 'lucide-react'
+import { useState } from 'react'
+import { Download, FileText, Printer, Presentation, Loader2 } from 'lucide-react'
+import { useGeneratePresentation, downloadPresentationFromBase64 } from '@/hooks/usePresentation'
+import { useToast } from '@/components/ui/toast'
 
 interface ReportViewProps {
   report: any
 }
 
 export function ReportView({ report }: ReportViewProps) {
+  const [pptTheme, setPptTheme] = useState<'professional' | 'modern' | 'corporate' | 'vibrant'>('professional')
+  const [showThemeSelector, setShowThemeSelector] = useState(false)
+  const generatePresentation = useGeneratePresentation()
+  const { addToast } = useToast()
+
   const handleDownloadPDF = () => {
     // Use browser's print to PDF functionality
     // This is more reliable than generating HTML
@@ -13,6 +21,41 @@ export function ReportView({ report }: ReportViewProps) {
 
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleGeneratePowerPoint = () => {
+    setShowThemeSelector(!showThemeSelector)
+  }
+
+  const handleGenerateWithTheme = (theme: typeof pptTheme) => {
+    generatePresentation.mutate(
+      {
+        research_result: report,
+        theme: theme,
+        include_verbose: !!report.methodology
+      },
+      {
+        onSuccess: (data) => {
+          addToast({
+            title: 'PowerPoint Generated!',
+            description: `Created ${data.file_name} (${(data.file_size / 1024).toFixed(0)} KB)`,
+            type: 'success',
+            duration: 5000
+          })
+
+          // Download the file
+          downloadPresentationFromBase64(data.data, data.file_name)
+          setShowThemeSelector(false)
+        },
+        onError: (error: any) => {
+          addToast({
+            title: 'Generation Failed',
+            description: error.message || 'Failed to generate PowerPoint',
+            type: 'error'
+          })
+        }
+      }
+    )
   }
 
   if (!report) {
@@ -116,6 +159,40 @@ export function ReportView({ report }: ReportViewProps) {
               <Download className="h-4 w-4" />
               Download PDF
             </button>
+            <div className="relative">
+              <button
+                onClick={handleGeneratePowerPoint}
+                disabled={generatePresentation.isPending}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-600 to-red-600 rounded-lg hover:from-orange-700 hover:to-red-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {generatePresentation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Presentation className="h-4 w-4" />
+                    PowerPoint
+                  </>
+                )}
+              </button>
+
+              {showThemeSelector && !generatePresentation.isPending && (
+                <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px] z-20">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Choose Theme:</div>
+                  {(['professional', 'modern', 'corporate', 'vibrant'] as const).map((theme) => (
+                    <button
+                      key={theme}
+                      onClick={() => handleGenerateWithTheme(theme)}
+                      className="w-full text-left px-3 py-2 text-sm rounded hover:bg-gray-100 capitalize"
+                    >
+                      {theme}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -288,21 +365,21 @@ export function ReportView({ report }: ReportViewProps) {
 
                   <div className="px-5 py-4 bg-gray-50 border-t border-gray-200 space-y-4">
                     {/* SQL Query */}
-                    {detail.method === 'sql' && detail.data?.sql && (
+                    {detail.method === 'sql' && (detail.code || detail.data?.sql) && (
                       <div>
                         <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">SQL Query</p>
                         <div className="bg-gray-900 rounded-lg overflow-hidden">
-                          <pre className="p-4 text-sm text-gray-100 overflow-x-auto">
-                            <code>{detail.data.sql}</code>
+                          <pre className="p-4 text-sm text-gray-100 overflow-x-auto max-h-96 overflow-y-auto">
+                            <code>{detail.code || detail.data?.sql}</code>
                           </pre>
                         </div>
                       </div>
                     )}
 
                     {/* Python Code */}
-                    {detail.method === 'python' && detail.data?.code && (
+                    {detail.method === 'python' && detail.code && (
                       <div>
-                        {detail.success && (detail.data.preview || detail.data.summary) ? (
+                        {detail.success && (detail.data?.preview || detail.data?.summary) ? (
                           <details className="group">
                             <summary className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide cursor-pointer hover:text-gray-900 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400 group-open:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -311,8 +388,8 @@ export function ReportView({ report }: ReportViewProps) {
                               Python Code (click to expand)
                             </summary>
                             <div className="bg-gray-900 rounded-lg overflow-hidden mt-2">
-                              <pre className="p-4 text-sm text-gray-100 overflow-x-auto">
-                                <code>{detail.data.code || 'Code not available'}</code>
+                              <pre className="p-4 text-sm text-gray-100 overflow-x-auto max-h-96 overflow-y-auto">
+                                <code>{detail.code}</code>
                               </pre>
                             </div>
                           </details>
@@ -320,8 +397,8 @@ export function ReportView({ report }: ReportViewProps) {
                           <>
                             <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Python Code</p>
                             <div className="bg-gray-900 rounded-lg overflow-hidden">
-                              <pre className="p-4 text-sm text-gray-100 overflow-x-auto">
-                                <code>{detail.data.code || 'Code not available'}</code>
+                              <pre className="p-4 text-sm text-gray-100 overflow-x-auto max-h-96 overflow-y-auto">
+                                <code>{detail.code}</code>
                               </pre>
                             </div>
                           </>
@@ -607,12 +684,25 @@ export function ReportView({ report }: ReportViewProps) {
                 </div>
               </div>
               <ul className="space-y-3">
-                {report.limitations.map((limitation: string, idx: number) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="text-amber-600 font-bold flex-shrink-0">{idx + 1}.</span>
-                    <span className="text-amber-900">{limitation}</span>
-                  </li>
-                ))}
+                {report.limitations.map((limitation: any, idx: number) => {
+                  // Handle both string and object formats
+                  const text = typeof limitation === 'string'
+                    ? limitation
+                    : limitation.description || limitation.type || JSON.stringify(limitation)
+                  const title = typeof limitation === 'object' && limitation.type
+                    ? limitation.type
+                    : null
+
+                  return (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-amber-600 font-bold flex-shrink-0">{idx + 1}.</span>
+                      <div className="text-amber-900">
+                        {title && <strong className="font-semibold block mb-1">{title}:</strong>}
+                        <span>{text}</span>
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           </section>
@@ -752,27 +842,47 @@ export function ReportView({ report }: ReportViewProps) {
                     </h3>
                     <div className="space-y-2 max-h-80 overflow-y-auto">
                       {report.technical_appendix.queries_executed.map((query: any, idx: number) => (
-                        <div key={idx} className="bg-gray-50 border border-gray-200 rounded p-3 text-xs">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-gray-700">{idx + 1}.</span>
-                            <span className={`px-2 py-0.5 rounded-full font-medium ${
-                              query.method === 'sql' ? 'bg-blue-100 text-blue-700' :
-                              query.method === 'python' ? 'bg-purple-100 text-purple-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {query.method}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded-full font-medium ${
-                              query.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                            }`}>
-                              {query.success ? '✓' : '✗'}
-                            </span>
-                            {query.execution_time_ms && (
-                              <span className="text-gray-500">{query.execution_time_ms}ms</span>
+                        <details key={idx} className="bg-gray-50 border border-gray-200 rounded">
+                          <summary className="p-3 cursor-pointer hover:bg-gray-100 transition">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-700">{idx + 1}.</span>
+                              <span className={`px-2 py-0.5 rounded-full font-medium text-xs ${
+                                query.method === 'sql' ? 'bg-blue-100 text-blue-700' :
+                                query.method === 'python' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {query.method.toUpperCase()}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full font-medium text-xs ${
+                                query.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                              }`}>
+                                {query.success ? '✓ Success' : '✗ Failed'}
+                              </span>
+                              {query.execution_time_ms && (
+                                <span className="text-gray-500 text-xs">{query.execution_time_ms}ms</span>
+                              )}
+                              <span className="text-gray-700 text-sm flex-1 truncate ml-2">{query.question}</span>
+                            </div>
+                          </summary>
+                          <div className="px-3 pb-3 pt-2 border-t border-gray-200 bg-white">
+                            <div className="text-xs font-semibold text-gray-600 mb-2">
+                              {query.method === 'sql' ? 'SQL Query:' : 'Python Code:'}
+                            </div>
+                            {query.code ? (
+                              <pre className="bg-gray-900 text-gray-100 p-3 rounded text-xs overflow-x-auto max-h-64 overflow-y-auto">
+                                <code>{query.code}</code>
+                              </pre>
+                            ) : (
+                              <div className="text-gray-500 text-xs italic">No code available</div>
+                            )}
+                            {!query.success && query.error && (
+                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                                <div className="font-semibold text-red-700 mb-1">Error:</div>
+                                <div className="text-red-600">{query.error}</div>
+                              </div>
                             )}
                           </div>
-                          <div className="text-gray-700 pl-5">{query.question}</div>
-                        </div>
+                        </details>
                       ))}
                     </div>
                   </div>

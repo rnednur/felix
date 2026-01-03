@@ -1,4 +1,5 @@
-import { Vega } from 'react-vega'
+import { VegaEmbed } from 'react-vega'
+import { useRef } from 'react'
 
 interface Props {
   spec: any
@@ -6,16 +7,16 @@ interface Props {
 }
 
 export function VegaChart({ spec, onExport }: Props) {
-  let vegaView: any
+  const vegaViewRef = useRef<any>(null)
 
-  const handleNewView = (view: any) => {
-    vegaView = view
+  const handleEmbed = (result: any) => {
+    vegaViewRef.current = result.view
   }
 
   const handleExport = async (format: 'png' | 'svg') => {
-    if (!vegaView) return
+    if (!vegaViewRef.current) return
 
-    const url = await vegaView.toImageURL(format)
+    const url = await vegaViewRef.current.toImageURL(format)
     const link = document.createElement('a')
     link.download = `chart.${format}`
     link.href = url
@@ -25,7 +26,7 @@ export function VegaChart({ spec, onExport }: Props) {
   return (
     <div className="space-y-2">
       <div className="bg-white p-4 rounded-lg shadow">
-        <Vega spec={spec} actions={false} onNewView={handleNewView} />
+        <VegaEmbed spec={spec} options={{ actions: false }} onEmbed={handleEmbed} />
       </div>
 
       {onExport && (

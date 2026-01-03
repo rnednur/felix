@@ -8,6 +8,12 @@ class DatasetCreate(BaseModel):
     description: Optional[str] = None
 
 
+class GoogleSheetsImportRequest(BaseModel):
+    google_sheets_url: str
+    sheet_name: Optional[str] = None  # If None, imports first sheet
+    access_token: str  # Google OAuth access token
+
+
 class DatasetResponse(BaseModel):
     id: str
     name: str
@@ -44,3 +50,79 @@ class SchemaResponse(BaseModel):
     columns: List[SchemaColumn]
     computed_at: str
     total_rows: int
+
+
+# Dataset Group Schemas
+class DatasetGroupCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class DatasetGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class DatasetGroupMembershipCreate(BaseModel):
+    dataset_id: str
+    alias: Optional[str] = None
+    display_order: Optional[int] = 0
+
+
+class DatasetGroupMembershipResponse(BaseModel):
+    id: str
+    dataset_id: str
+    alias: Optional[str]
+    display_order: int
+    dataset: DatasetResponse
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetGroupResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    memberships: List[DatasetGroupMembershipResponse]
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetGroupListResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    dataset_count: int
+
+    class Config:
+        from_attributes = True
+
+
+# Relationship Schemas
+class DatasetGroupRelationshipCreate(BaseModel):
+    from_dataset_id: str
+    from_column: str
+    to_dataset_id: str
+    to_column: str
+    join_type: str = "INNER"
+
+
+class DatasetGroupRelationshipResponse(BaseModel):
+    id: str
+    group_id: str
+    from_dataset_id: str
+    from_column: str
+    to_dataset_id: str
+    to_column: str
+    join_type: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

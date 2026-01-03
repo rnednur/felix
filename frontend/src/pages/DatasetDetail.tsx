@@ -1,21 +1,34 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
-import { useDataset, useDatasetPreview, useDatasetSchema } from '@/hooks/useDatasets'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { useDataset, useDatasetPreview, useDatasetAllRows, useDatasetSchema } from '@/hooks/useDatasets'
 import { useNLQuery } from '@/hooks/useQuery'
 import { useVisualizationSuggestions } from '@/hooks/useVisualization'
 import { ChatSidebar, type AnalysisMode } from '@/components/chat/ChatSidebar'
+import { DataWorkspaceLayout } from '@/components/layout/DataWorkspaceLayout'
 import { SpreadsheetView } from '@/components/canvas/SpreadsheetView'
 import { DashboardView } from '@/components/canvas/DashboardView'
 import { SchemaView } from '@/components/canvas/SchemaView'
 import { ReportView } from '@/components/canvas/ReportView'
+import { CanvasWorkspace } from '@/components/canvas/CanvasWorkspace'
+import { useAGUIStream } from '@/hooks/useAGUIStream'
+import { CanvasItem } from '@/types/canvas'
+import { DatasetHub } from '@/components/dataset-hub/DatasetHub'
+import { MapView } from '@/components/map/MapView'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
+import { ShareModal } from '@/components/sharing/ShareModal'
 import { PlanEditor } from '@/components/research/PlanEditor'
+import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal'
+import { ScoutingDialog } from '@/components/scouting/ScoutingDialog'
+import { ScoutingResults } from '@/components/scouting/ScoutingResults'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText } from 'lucide-react'
+import { IconButton } from '@/components/ui/icon-button'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles, Map as MapIcon } from 'lucide-react'
 import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult } from '@/services/api'
+import axios from '@/services/api'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -26,12 +39,34 @@ interface Message {
 
 export default function DatasetDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { data: dataset } = useDataset(id!)
   const { data: preview } = useDatasetPreview(id!)
   const { data: schema } = useDatasetSchema(id!)
+
+  // Spatial/Map state
+  const [spatialColumns, setSpatialColumns] = useState<any>(null)
+  const [mapConfig, setMapConfig] = useState<any>(null)
+  const [showAllMapPoints, setShowAllMapPoints] = useState(false)
+
+  // Fetch all rows only when showAllMapPoints is true
+  const { data: allRows, isLoading: isLoadingAllRows } = useDatasetAllRows(id!, showAllMapPoints)
+
+  // Save the current dataset ID to localStorage for "back" navigation
+  useEffect(() => {
+    if (id) {
+      localStorage.setItem('lastViewedDatasetId', id)
+    }
+  }, [id])
   const [messages, setMessages] = useState<Message[]>([])
-  const [currentView, setCurrentView] = useState<'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report'>('spreadsheet')
+  const [currentView, setCurrentView] = useState<'hub' | 'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas' | 'map'>('hub')
   const [queryResult, setQueryResult] = useState<any>(null)
+
+  // Canvas mode state
+  const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
+  const [canvasMode, setCanvasMode] = useState(false)
+  const [showLoadDialog, setShowLoadDialog] = useState(false)
+  const [savedWorkspaces, setSavedWorkspaces] = useState<any[]>([])
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('auto')
   const [codePreview, setCodePreview] = useState<PythonAnalysisResult | null>(null)
   const [showCodeModal, setShowCodeModal] = useState(false)
@@ -61,8 +96,99 @@ export default function DatasetDetail() {
   const [showPlanEditor, setShowPlanEditor] = useState(false)
   const [currentPlan, setCurrentPlan] = useState<any>(null)
 
+  // Research history
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+
+  // Sharing
+  const [showShareModal, setShowShareModal] = useState(false)
+
+  // Data Scouting
+  const [showScoutingDialog, setShowScoutingDialog] = useState(false)
+  const [scoutingResult, setScoutingResult] = useState<any>(null)
+  const [showScoutingResults, setShowScoutingResults] = useState(false)
+
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
+
+  // AG-UI Stream for canvas mode
+  const { isStreaming, startStream } = useAGUIStream({
+    workspaceId: id || 'temp',
+    datasetId: id,
+    onItemCreate: (item) => {
+      setCanvasItems(prev => {
+        // First item - use backend position
+        if (prev.length === 0) {
+          return [item as CanvasItem]
+        }
+
+        // Check if this is a header (start of new question group)
+        const isHeader = item.type === 'insight-note' &&
+                        (item.content as any)?.tags?.includes('query-header')
+
+        if (isHeader) {
+          // Find the bottom of the last group
+          const maxY = Math.max(...prev.map(i => i.y + i.height))
+          // Start new group with 150px spacing
+          return [...prev, { ...item, y: maxY + 150 } as CanvasItem]
+        }
+
+        // For non-header items, find the last header to determine group base Y
+        const headers = prev.filter(p =>
+          p.type === 'insight-note' && (p.content as any)?.tags?.includes('query-header')
+        )
+        const lastHeader = headers[headers.length - 1]
+        const baseY = lastHeader ? lastHeader.y : 50
+
+        // Adjust Y position relative to the current group's base
+        // Keep the backend's relative positioning within the group
+        const adjustedItem = {
+          ...item,
+          y: baseY + (item.y - 100) // Backend uses base_y = 100, adjust to actual base
+        } as CanvasItem
+
+        return [...prev, adjustedItem]
+      })
+    },
+    onComplete: () => {
+      console.log('Stream completed')
+    },
+    onError: (err) => {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ Error: ${err}`
+      }])
+    }
+  })
+
+  // Check user's role and permissions
+  const { data: userRole } = useQuery({
+    queryKey: ['user-role', id],
+    queryFn: async () => {
+      const { data } = await axios.get(`/sharing/datasets/${id}/my-role`)
+      return data
+    },
+    enabled: !!id
+  })
+
+  // Fetch spatial info for map visualization
+  useEffect(() => {
+    if (!id) return
+
+    const fetchSpatialInfo = async () => {
+      try {
+        const { data } = await axios.get(`/datasets/${id}/spatial-info`)
+        if (data.has_spatial) {
+          console.log('Spatial data detected:', data)
+          setSpatialColumns(data.columns)
+          setMapConfig(data.default_config)
+        }
+      } catch (error) {
+        console.error('Error fetching spatial info:', error)
+      }
+    }
+
+    fetchSpatialInfo()
+  }, [id])
 
   // Removed auto-describe - users can click "Describe Dataset" button to open modal
 
@@ -208,7 +334,77 @@ export default function DatasetDetail() {
     }
   }
 
+  const handleLoadWorkspace = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        alert('Please log in to load workspaces')
+        return
+      }
+
+      // Fetch workspaces for this dataset
+      const response = await axios.get('/workspaces', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      // Filter by dataset_id if needed
+      const workspacesForDataset = response.data.filter((ws: any) => ws.dataset_id === id)
+      setSavedWorkspaces(workspacesForDataset)
+      setShowLoadDialog(true)
+    } catch (error: any) {
+      console.error('Failed to load workspaces:', error)
+      alert(`Failed to load workspaces: ${error.response?.data?.detail || error.message}`)
+    }
+  }
+
+  const handleSelectWorkspace = async (workspaceId: string) => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (!token) return
+
+      // Fetch workspace with items
+      const response = await axios.get(`/workspaces/${workspaceId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      const workspace = response.data
+
+      // Convert backend format to frontend format
+      const loadedItems: CanvasItem[] = workspace.items.map((item: any) => ({
+        id: item.id,
+        workspaceId: workspace.id,
+        type: item.type,
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height,
+        zIndex: item.z_index,
+        content: item.content
+      }))
+
+      setCanvasItems(loadedItems)
+      setShowLoadDialog(false)
+      alert(`✅ Loaded workspace: ${workspace.name}`)
+    } catch (error: any) {
+      console.error('Failed to load workspace:', error)
+      alert(`Failed to load workspace: ${error.response?.data?.detail || error.message}`)
+    }
+  }
+
   const handleQuerySubmit = async (query: string, mode: AnalysisMode = 'auto') => {
+    // Switch away from hub view when query is submitted
+    if (currentView === 'hub') {
+      setCurrentView('dashboard')
+    }
+
+    // Handle canvas mode
+    if (canvasMode) {
+      setMessages((prev) => [...prev, { role: 'user', content: query }])
+      startStream(query)
+      setCurrentView('canvas')
+      return
+    }
+
     // Check for slash commands
     if (query.startsWith('/metadata ')) {
       const instruction = query.substring(10).trim()
@@ -529,27 +725,7 @@ export default function DatasetDetail() {
   const charts = vizSuggestions?.suggestions || []
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
-      {/* Chat Sidebar */}
-      <ChatSidebar
-        datasetId={id}
-        onQuerySubmit={handleQuerySubmit}
-        messages={messages}
-        isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting}
-        analysisMode={analysisMode}
-        onModeChange={setAnalysisMode}
-        verboseMode={verboseMode}
-        onVerboseModeToggle={setVerboseMode}
-        generateInfographic={generateInfographic}
-        onInfographicToggle={setGenerateInfographic}
-        infographicFormat={infographicFormat}
-        onInfographicFormatChange={setInfographicFormat}
-        infographicColorScheme={infographicColorScheme}
-        onInfographicColorSchemeChange={setInfographicColorScheme}
-        infographicGenerationMethod={infographicGenerationMethod}
-        onInfographicGenerationMethodChange={setInfographicGenerationMethod}
-      />
-
+    <>
       {/* Code Preview Modal */}
       {codePreview && (
         <CodePreviewModal
@@ -568,6 +744,27 @@ export default function DatasetDetail() {
           onClose={() => setShowOverviewModal(false)}
           dataset={dataset}
           description={overviewData}
+        />
+      )}
+
+      {/* Data Scouting Dialog */}
+      {showScoutingDialog && (
+        <ScoutingDialog
+          datasetId={id!}
+          datasetName={dataset?.name || 'Dataset'}
+          onClose={() => setShowScoutingDialog(false)}
+          onSuccess={(result) => {
+            setScoutingResult(result)
+            setShowScoutingResults(true)
+          }}
+        />
+      )}
+
+      {/* Scouting Results */}
+      {showScoutingResults && scoutingResult && (
+        <ScoutingResults
+          result={scoutingResult}
+          onClose={() => setShowScoutingResults(false)}
         />
       )}
 
@@ -591,92 +788,341 @@ export default function DatasetDetail() {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Bar */}
-        <div className="border-b border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">{dataset.name}</h2>
-              <p className="text-sm text-gray-500">
-                {dataset.row_count.toLocaleString()} rows • {dataset.source_type}
-              </p>
+      {/* Share Modal */}
+      {showShareModal && dataset && (
+        <ShareModal
+          datasetId={id!}
+          datasetName={dataset.name}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {/* Research History Modal */}
+      <ResearchHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        datasetId={id!}
+        onLoadResearch={(report) => {
+          setDeepResearchReport(report)
+          setCurrentView('report')
+        }}
+      />
+
+      {/* Load Workspace Dialog */}
+      {showLoadDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Load Workspace</h3>
+              <button
+                onClick={() => setShowLoadDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  const description = await describeDataset(id!)
-                  setOverviewData(description)
-                  setShowOverviewModal(true)
-                }}
+
+            <div className="flex-1 overflow-y-auto">
+              {savedWorkspaces.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <FolderOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium">No saved workspaces found</p>
+                  <p className="text-sm mt-1">Create your first workspace by saving the current canvas</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedWorkspaces.map((workspace) => (
+                    <button
+                      key={workspace.id}
+                      onClick={() => handleSelectWorkspace(workspace.id)}
+                      className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900">{workspace.name}</h4>
+                          {workspace.description && (
+                            <p className="text-sm text-gray-600 mt-1">{workspace.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span>Created: {new Date(workspace.created_at).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span>Updated: {new Date(workspace.updated_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <div className="text-blue-600 ml-4">
+                          <FolderOpen className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowLoadDialog(false)}
+                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
-                <Info className="h-4 w-4 mr-2" />
-                Describe Dataset
-              </Button>
-              <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => window.location.href = '/'}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Dataset
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowSettingsPanel(true)}
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </Button>
+                Cancel
+              </button>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Tabs */}
-        <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden">
-          <div className="border-b border-gray-200 bg-gray-50 px-4">
-            <TabsList className="bg-transparent">
-              <TabsTrigger value="spreadsheet" className="gap-2">
-                <FileSpreadsheet className="h-4 w-4" />
-                Spreadsheet
-              </TabsTrigger>
-              <TabsTrigger value="schema" className="gap-2">
-                <Table2 className="h-4 w-4" />
-                Schema
-              </TabsTrigger>
-              <TabsTrigger value="dashboard" className="gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Dashboard
-                {queryResult && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
-                    {queryResult.total_rows}
-                  </span>
+      <DataWorkspaceLayout
+        sidebar={
+          <ChatSidebar
+            datasetId={id}
+            onQuerySubmit={handleQuerySubmit}
+            messages={messages}
+            isLoading={nlQueryMutation.isPending || isGeneratingCode || isExecuting || isStreaming}
+            analysisMode={analysisMode}
+            onModeChange={setAnalysisMode}
+            verboseMode={verboseMode}
+            onVerboseModeToggle={setVerboseMode}
+            generateInfographic={generateInfographic}
+            onInfographicToggle={setGenerateInfographic}
+            infographicFormat={infographicFormat}
+            onInfographicFormatChange={setInfographicFormat}
+            infographicColorScheme={infographicColorScheme}
+            onInfographicColorSchemeChange={setInfographicColorScheme}
+            infographicGenerationMethod={infographicGenerationMethod}
+            onInfographicGenerationMethodChange={setInfographicGenerationMethod}
+          />
+        }
+        header={
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <IconButton
+                  variant="ghost"
+                  size="md"
+                  tooltip="Back to Dataset Hub"
+                  onClick={() => navigate('/')}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </IconButton>
+                <div>
+                  <h2 className="text-xl font-semibold">{dataset.name}</h2>
+                  <p className="text-sm text-gray-500">
+                    {dataset.row_count.toLocaleString()} rows • {dataset.source_type}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={canvasMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setCanvasMode(!canvasMode)
+                    if (!canvasMode) {
+                      setCurrentView('canvas')
+                    } else {
+                      setCurrentView('spreadsheet')
+                    }
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Layout className="h-4 w-4" />
+                  {canvasMode ? 'Canvas Mode' : 'Tabs Mode'}
+                </Button>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Describe Dataset"
+                  onClick={async () => {
+                    const description = await describeDataset(id!)
+                    setOverviewData(description)
+                    setShowOverviewModal(true)
+                  }}
+                >
+                  <Info className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Data Scouting Agent"
+                  onClick={() => setShowScoutingDialog(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <Sparkles className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Research History"
+                  onClick={() => setShowHistoryModal(true)}
+                >
+                  <History className="h-5 w-5" />
+                </IconButton>
+                {userRole?.can_share && (
+                  <IconButton
+                    variant="default"
+                    size="md"
+                    tooltip="Share Dataset"
+                    onClick={() => setShowShareModal(true)}
+                  >
+                    <Share2 className="h-5 w-5" />
+                  </IconButton>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="report" className="gap-2">
-                <FileText className="h-4 w-4" />
-                Report
-                {deepResearchReport && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
-                    New
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="code" className="gap-2">
-                <Code2 className="h-4 w-4" />
-                Code
-                {lastExecution && (
-                  <span className={`ml-1 px-1.5 py-0.5 text-xs rounded ${
-                    lastExecution.result?.status === 'SUCCESS'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {lastExecution.result?.status || 'N/A'}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
+                <IconButton
+                  variant="primary"
+                  size="md"
+                  tooltip="Upload Dataset"
+                  onClick={() => navigate('/')}
+                >
+                  <Upload className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Settings"
+                  onClick={() => setShowSettingsPanel(true)}
+                >
+                  <Settings className="h-5 w-5" />
+                </IconButton>
+              </div>
+            </div>
           </div>
+        }
+      >
+        {/* Canvas Mode or Tabs */}
+        {canvasMode ? (
+          <CanvasWorkspace
+            workspaceId={id || 'temp'}
+            items={canvasItems}
+            onItemsChange={setCanvasItems}
+            onLoad={handleLoadWorkspace}
+            onSave={async (name: string, description?: string) => {
+              try {
+                console.log('Saving workspace...', { name, description, dataset_id: id })
+                const token = localStorage.getItem('access_token')
+                console.log('Token:', token ? `Present (${token.substring(0, 20)}...)` : 'Missing')
+
+                if (!token) {
+                  throw new Error('No authentication token found. Please log in again.')
+                }
+
+                // Create workspace via API with explicit auth header
+                const response = await axios.post(
+                  '/workspaces',
+                  {
+                    name,
+                    description,
+                    dataset_id: id
+                  },
+                  {
+                    headers: {
+                      Authorization: `Bearer ${token}`
+                    }
+                  }
+                )
+                console.log('Request headers:', response.config.headers)
+
+                console.log('Workspace created:', response.data)
+                const workspaceId = response.data.id
+
+                // Save each canvas item
+                console.log(`Saving ${canvasItems.length} canvas items...`)
+                for (const item of canvasItems) {
+                  await axios.post(
+                    `/workspaces/${workspaceId}/items`,
+                    {
+                      type: item.type,
+                      x: item.x,
+                      y: item.y,
+                      width: item.width,
+                      height: item.height,
+                      z_index: item.zIndex,
+                      content: item.content
+                    },
+                    {
+                      headers: {
+                        Authorization: `Bearer ${token}`
+                      }
+                    }
+                  )
+                }
+
+                console.log('All items saved successfully')
+                alert(`✅ Workspace "${name}" saved successfully!`)
+              } catch (error: any) {
+                console.error('Failed to save workspace:', error)
+                console.error('Error response:', error.response?.data)
+                console.error('Error status:', error.response?.status)
+                alert(`❌ Failed to save workspace: ${error.response?.data?.detail || error.message}`)
+              }
+            }}
+          />
+        ) : (
+          <Tabs value={currentView} onValueChange={(v) => setCurrentView(v as any)} className="flex-1 flex flex-col overflow-hidden h-full">
+            <div className="border-b border-gray-200 bg-gray-50 px-4">
+              <TabsList className="bg-transparent">
+                <TabsTrigger value="hub" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Home
+                </TabsTrigger>
+                <TabsTrigger value="spreadsheet" className="gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Spreadsheet
+                </TabsTrigger>
+                <TabsTrigger value="schema" className="gap-2">
+                  <Table2 className="h-4 w-4" />
+                  Schema
+                </TabsTrigger>
+                <TabsTrigger value="dashboard" className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Dashboard
+                  {queryResult && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                      {queryResult.total_rows}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="report" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Report
+                  {deepResearchReport && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                      New
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="code" className="gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Code
+                  {lastExecution && (
+                    <span className={`ml-1 px-1.5 py-0.5 text-xs rounded ${
+                      lastExecution.result?.status === 'SUCCESS'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {lastExecution.result?.status || 'N/A'}
+                    </span>
+                  )}
+                </TabsTrigger>
+                {spatialColumns && (
+                  <TabsTrigger value="map" className="gap-2">
+                    <MapIcon className="h-4 w-4" />
+                    Map
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                      {queryResult ? queryResult.total_rows : preview?.rows?.length || 0}
+                    </span>
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
+
+          {/* Hub View - AI Suggestions and Quick Start */}
+          <TabsContent value="hub" className="flex-1 m-0 overflow-hidden">
+            <DatasetHub
+              datasetId={id!}
+              datasetName={dataset.name}
+              onQuerySelect={handleQuerySubmit}
+            />
+          </TabsContent>
 
           {/* Spreadsheet View - Always shows original dataset */}
           <TabsContent value="spreadsheet" className="flex-1 m-0 p-6 overflow-auto">
@@ -877,8 +1323,60 @@ export default function DatasetDetail() {
               </div>
             )}
           </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+
+          {/* Map View - Kepler.gl visualization */}
+          <TabsContent value="map" className="flex-1 m-0 overflow-hidden">
+            {spatialColumns ? (
+              <div className="relative h-full">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[999] flex gap-2">
+                  {queryResult && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setQueryResult(null)}
+                      className="shadow-xl bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+                    >
+                      Reset Filter
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllMapPoints(!showAllMapPoints)}
+                    disabled={isLoadingAllRows}
+                    className={`shadow-xl border border-gray-300 ${
+                      showAllMapPoints
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {isLoadingAllRows ? (
+                      <>Loading...</>
+                    ) : showAllMapPoints ? (
+                      <>✓ All Points ({dataset?.row_count.toLocaleString()})</>
+                    ) : (
+                      <>Preview (100)</>
+                    )}
+                  </Button>
+                </div>
+                <MapView
+                  datasetId={id!}
+                  data={queryResult?.rows || (showAllMapPoints && allRows ? allRows.rows : preview?.rows) || []}
+                  spatialColumns={spatialColumns}
+                  config={mapConfig}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <MapIcon className="h-16 w-16 mb-4 text-gray-300" />
+                <p className="text-lg font-medium">No spatial data detected</p>
+                <p className="text-sm mt-2">This dataset doesn't have latitude/longitude columns</p>
+              </div>
+            )}
+          </TabsContent>
+          </Tabs>
+        )}
+      </DataWorkspaceLayout>
+    </>
   )
 }

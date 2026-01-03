@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { getDatasetSchema } from '@/services/api'
+import { getDatasetSchema, getColumnMetadata } from '@/services/api'
+import { FileText } from 'lucide-react'
 
 interface SchemaViewProps {
   datasetId: string
@@ -11,6 +12,20 @@ export function SchemaView({ datasetId }: SchemaViewProps) {
     queryFn: () => getDatasetSchema(datasetId),
     enabled: !!datasetId,
   })
+
+  const { data: metadata } = useQuery({
+    queryKey: ['column-metadata', datasetId],
+    queryFn: () => getColumnMetadata(datasetId),
+    enabled: !!datasetId,
+  })
+
+  // Create a map of column metadata for quick lookup
+  const metadataMap = new Map()
+  if (metadata) {
+    metadata.forEach((m: any) => {
+      metadataMap.set(m.column_name, m)
+    })
+  }
 
   if (isLoading) {
     return <div className="p-6 text-center">Loading schema...</div>
@@ -48,31 +63,67 @@ export function SchemaView({ datasetId }: SchemaViewProps) {
           </div>
 
           <div className="divide-y divide-gray-200">
-            {schema.columns.map((col: any, idx: number) => (
-              <div key={idx} className="p-6 hover:bg-gray-50">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h4 className="text-base font-semibold text-gray-900">{col.name}</h4>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                        {col.dtype}
-                      </span>
-                      {col.nullable && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                          nullable
-                        </span>
+            {schema.columns.map((col: any, idx: number) => {
+              const colMetadata = metadataMap.get(col.name)
+
+              return (
+                <div key={idx} className="p-6 hover:bg-gray-50">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-semibold text-gray-900">{col.name}</h4>
+                        {colMetadata && (
+                          <span className="inline-flex items-center gap-1 text-xs text-purple-600">
+                            <FileText className="h-3 w-3" />
+                            Has metadata
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Display metadata description if available */}
+                      {colMetadata?.description && (
+                        <p className="text-sm text-gray-700 mt-2 italic">
+                          {colMetadata.description}
+                        </p>
                       )}
-                      {col.tags.map((tag: string) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"
-                        >
-                          {tag}
+
+                      {/* Display business definition if available */}
+                      {colMetadata?.business_definition && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          <strong>Business Context:</strong> {colMetadata.business_definition}
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          {col.dtype}
                         </span>
-                      ))}
+                        {colMetadata?.semantic_type && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            {colMetadata.semantic_type}
+                          </span>
+                        )}
+                        {col.nullable && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                            nullable
+                          </span>
+                        )}
+                        {colMetadata?.is_pii && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                            PII
+                          </span>
+                        )}
+                        {col.tags.map((tag: string) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {/* Statistics */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -182,8 +233,9 @@ export function SchemaView({ datasetId }: SchemaViewProps) {
                     </div>
                   </div>
                 )}
-              </div>
-            ))}
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>

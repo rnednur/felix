@@ -12,7 +12,9 @@ from app.models import (
     SemanticMetric,
     AuditLog,
     CodeExecution,
-    MLModel
+    MLModel,
+    Workspace,
+    CanvasItem
 )
 from app.models.column_metadata import ColumnMetadata, QueryRule
 

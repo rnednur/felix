@@ -17,6 +17,7 @@ class Query(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     dataset_id = Column(String, ForeignKey("datasets.id"), nullable=True)
+    group_id = Column(String, ForeignKey("dataset_groups.id"), nullable=True)
 
     # Query content
     nl_input = Column(Text, nullable=True)  # Natural language query
@@ -40,4 +41,5 @@ class Query(Base):
 
     # Relationships
     dataset = relationship("Dataset", back_populates="queries")
+    group = relationship("DatasetGroup", back_populates="queries")
     visualizations = relationship("Visualization", back_populates="query")

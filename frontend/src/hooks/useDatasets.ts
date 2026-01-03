@@ -1,5 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { uploadDataset, getDataset, listDatasets, getDatasetPreview, getDatasetSchema } from '@/services/api'
+import {
+  uploadDataset,
+  getDataset,
+  listDatasets,
+  getDatasetPreview,
+  getDatasetAllRows,
+  getDatasetSchema,
+  deleteDataset,
+  importGoogleSheets,
+} from '@/services/api'
 
 export function useDatasets() {
   return useQuery({
@@ -24,6 +33,14 @@ export function useDatasetPreview(id: string) {
   })
 }
 
+export function useDatasetAllRows(id: string, enabled: boolean = false) {
+  return useQuery({
+    queryKey: ['dataset-all-rows', id],
+    queryFn: () => getDatasetAllRows(id),
+    enabled: !!id && enabled,
+  })
+}
+
 export function useDatasetSchema(id: string) {
   return useQuery({
     queryKey: ['dataset-schema', id],
@@ -37,6 +54,28 @@ export function useUploadDataset() {
 
   return useMutation({
     mutationFn: uploadDataset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['datasets'] })
+    },
+  })
+}
+
+export function useDeleteDataset() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteDataset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['datasets'] })
+    },
+  })
+}
+
+export function useImportGoogleSheets() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: importGoogleSheets,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['datasets'] })
     },

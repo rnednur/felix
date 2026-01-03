@@ -62,13 +62,15 @@ class AnalysisResult:
                  success: bool,
                  data: Any = None,
                  visualization: Any = None,
-                 error: str = None):
+                 error: str = None,
+                 code: str = None):  # Add code field
         self.question = question
         self.method = method
         self.success = success
         self.data = data
         self.visualization = visualization
         self.error = error
+        self.code = code  # Store the actual SQL/Python code
 
 
 class DeepResearchService:
@@ -174,18 +176,27 @@ class DeepResearchService:
         # Stage 7 (Optional): Generate Verbose Analysis
         verbose_analysis = {}
         if verbose_mode:
-            print(f"[{research_id}] Stage 7: Generating verbose multi-page analysis...")
+            print(f"[{research_id}] ✅ VERBOSE MODE ENABLED - Generating verbose multi-page analysis...")
             if progress_callback:
                 await progress_callback(7, "Generating comprehensive report with detailed analysis...")
-            verbose_analysis = await self._generate_verbose_analysis(
-                main_question,
-                sub_questions,
-                classified,
-                results,
-                world_knowledge,
-                synthesis,
-                schema
-            )
+            try:
+                verbose_analysis = await self._generate_verbose_analysis(
+                    main_question,
+                    sub_questions,
+                    classified,
+                    results,
+                    world_knowledge,
+                    synthesis,
+                    schema
+                )
+                print(f"[{research_id}] ✅ Verbose analysis generated successfully!")
+                print(f"[{research_id}] Verbose fields: {list(verbose_analysis.keys())}")
+            except Exception as e:
+                print(f"[{research_id}] ❌ ERROR generating verbose analysis: {str(e)}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"[{research_id}] ⚠️ VERBOSE MODE DISABLED - Skipping detailed analysis")
 
         # Track execution time
         execution_time = time.time() - start_time
@@ -251,7 +262,8 @@ class DeepResearchService:
 
         # Add verbose analysis fields if generated
         if verbose_mode and verbose_analysis:
-            result.update({
+            print(f"[{research_id}] 📝 Adding verbose fields to result...")
+            verbose_fields = {
                 'executive_summary': verbose_analysis.get('executive_summary'),
                 'methodology': verbose_analysis.get('methodology'),
                 'detailed_findings': verbose_analysis.get('detailed_findings'),
@@ -259,7 +271,13 @@ class DeepResearchService:
                 'limitations': verbose_analysis.get('limitations'),
                 'recommendations': verbose_analysis.get('recommendations'),
                 'technical_appendix': verbose_analysis.get('technical_appendix')
-            })
+            }
+            result.update(verbose_fields)
+            print(f"[{research_id}] ✅ Verbose fields added: {[k for k, v in verbose_fields.items() if v is not None]}")
+        elif verbose_mode:
+            print(f"[{research_id}] ⚠️ Verbose mode enabled but verbose_analysis is empty!")
+
+        print(f"[{research_id}] 📦 Final result keys: {list(result.keys())}")
 
         # Filter out None values from stages_completed
         result['stages_completed'] = [s for s in result['stages_completed'] if s is not None]
@@ -443,6 +461,7 @@ Return ONLY valid JSON:
                 question=question,
                 method='sql',
                 success=True,
+                code=sql_result['sql'],  # Store SQL code
                 data={
                     'sql': sql_result['sql'],
                     'rows': len(df),
@@ -481,6 +500,7 @@ Return ONLY valid JSON:
                     question=question,
                     method='python',
                     success=True,
+                    code=code_result['code'],  # Store Python code
                     data=exec_result.get('output'),
                     visualization=exec_result.get('visualizations')
                 )
@@ -489,6 +509,7 @@ Return ONLY valid JSON:
                     question=question,
                     method='python',
                     success=False,
+                    code=code_result['code'],  # Store code even on failure
                     error=exec_result.get('error')
                 )
         except Exception as e:
@@ -538,10 +559,20 @@ Return as JSON:
   ]
 }}"""
 
-        response = await self._call_llm(prompt)
-        parsed = self._parse_json_response(response)
+        try:
+            response = await self._call_llm(prompt)
+            parsed = self._parse_json_response(response)
 
-        return parsed
+            # Validate that we got meaningful data
+            if not parsed or 'knowledge' not in parsed:
+                print("⚠️ World knowledge enrichment returned empty or invalid response")
+                return {}
+
+            return parsed
+        except Exception as e:
+            print(f"⚠️ World knowledge enrichment failed: {str(e)}")
+            # Return empty dict so research can continue
+            return {}
 
     async def _synthesize_insights(self,
                                    main_question: str,
@@ -598,6 +629,7 @@ Return as JSON:
                 'question': r.question,
                 'method': r.method,
                 'success': r.success,
+                'code': r.code if hasattr(r, 'code') and r.code else None,  # Include code
                 'data': r.data if r.success else None,
                 'error': r.error if not r.success else None
             }
@@ -653,6 +685,9 @@ Return as JSON:
                                         schema: Dict) -> Dict[str, Any]:
         """Generate comprehensive verbose analysis with multiple sections"""
 
+        print("🔍 [VERBOSE] _generate_verbose_analysis() called!")
+        print(f"🔍 [VERBOSE] Inputs: {len(sub_questions)} sub-questions, {len(results)} results")
+
         results_summary = self._summarize_results(results)
 
         # 1. Executive Summary (2-3 paragraphs)
@@ -677,8 +712,12 @@ Return as JSON:
   "executive_summary": "Full multi-paragraph text here..."
 }}"""
 
-        exec_response = await self._call_llm(exec_summary_prompt)
-        exec_summary = self._parse_json_response(exec_response).get('executive_summary', '')
+        try:
+            exec_response = await self._call_llm(exec_summary_prompt)
+            exec_summary = self._parse_json_response(exec_response).get('executive_summary', '')
+        except Exception as e:
+            print(f"⚠️ Executive summary generation failed: {str(e)}")
+            exec_summary = "Executive summary generation failed. Please refer to key findings below."
 
         # 2. Methodology & Data Sources
         methodology = {
@@ -703,12 +742,18 @@ Return as JSON:
         }
 
         # 3. Detailed Findings (one entry per sub-question)
+        # Build sub-questions summary for prompt
+        sub_q_summary = [
+            {'question': sq.question, 'results': self._get_result_for_question(sq.question, results)}
+            for sq in sub_questions[:10]
+        ]
+
         detailed_findings_prompt = f"""For each sub-question analyzed, provide detailed findings with context and implications.
 
 Main Question: {main_question}
 
 Sub-Questions and Results:
-{json.dumps([{{'question': sq.question, 'results': self._get_result_for_question(sq.question, results)}} for sq in sub_questions[:10]], indent=2)}
+{json.dumps(sub_q_summary, indent=2)}
 
 For each sub-question, provide:
 - finding_title: Short descriptive title
@@ -731,8 +776,12 @@ Return as JSON:
   ]
 }}"""
 
-        detailed_response = await self._call_llm(detailed_findings_prompt)
-        detailed_findings = self._parse_json_response(detailed_response).get('detailed_findings', [])
+        try:
+            detailed_response = await self._call_llm(detailed_findings_prompt)
+            detailed_findings = self._parse_json_response(detailed_response).get('detailed_findings', [])
+        except Exception as e:
+            print(f"⚠️ Detailed findings generation failed: {str(e)}")
+            detailed_findings = []
 
         # 4. Cross-Analysis & Patterns
         cross_analysis_prompt = f"""Analyze patterns and connections across all findings.
@@ -757,8 +806,12 @@ Return as JSON:
   "trends": ["trend 1"]
 }}"""
 
-        cross_response = await self._call_llm(cross_analysis_prompt)
-        cross_analysis = self._parse_json_response(cross_response)
+        try:
+            cross_response = await self._call_llm(cross_analysis_prompt)
+            cross_analysis = self._parse_json_response(cross_response)
+        except Exception as e:
+            print(f"⚠️ Cross-analysis generation failed: {str(e)}")
+            cross_analysis = {}
 
         # 5. Limitations & Caveats
         limitations_prompt = f"""Identify limitations and caveats of this analysis.
@@ -787,8 +840,12 @@ Return as JSON:
   ]
 }}"""
 
-        limitations_response = await self._call_llm(limitations_prompt)
-        limitations = self._parse_json_response(limitations_response).get('limitations', [])
+        try:
+            limitations_response = await self._call_llm(limitations_prompt)
+            limitations = self._parse_json_response(limitations_response).get('limitations', [])
+        except Exception as e:
+            print(f"⚠️ Limitations generation failed: {str(e)}")
+            limitations = []
 
         # 6. Recommendations & Next Steps
         recommendations_prompt = f"""Based on findings, provide actionable recommendations.
@@ -819,8 +876,12 @@ Return as JSON:
   ]
 }}"""
 
-        recommendations_response = await self._call_llm(recommendations_prompt)
-        recommendations = self._parse_json_response(recommendations_response).get('recommendations', [])
+        try:
+            recommendations_response = await self._call_llm(recommendations_prompt)
+            recommendations = self._parse_json_response(recommendations_response).get('recommendations', [])
+        except Exception as e:
+            print(f"⚠️ Recommendations generation failed: {str(e)}")
+            recommendations = []
 
         # 7. Technical Appendix
         technical_appendix = {
@@ -829,6 +890,8 @@ Return as JSON:
                     "question": r.question,
                     "method": r.method,
                     "success": r.success,
+                    "code": r.code if hasattr(r, 'code') and r.code else None,  # Include SQL/Python code
+                    "error": r.error if not r.success and hasattr(r, 'error') else None,
                     "execution_time_ms": getattr(r, 'execution_time_ms', None)
                 }
                 for r in results[:20]  # Limit to first 20
@@ -853,7 +916,7 @@ Return as JSON:
             }
         }
 
-        return {
+        verbose_result = {
             "executive_summary": exec_summary,
             "methodology": methodology,
             "detailed_findings": detailed_findings,
@@ -862,6 +925,13 @@ Return as JSON:
             "recommendations": recommendations,
             "technical_appendix": technical_appendix
         }
+
+        print(f"✅ [VERBOSE] Generated verbose analysis with {len(verbose_result)} sections")
+        print(f"✅ [VERBOSE] Sections: {list(verbose_result.keys())}")
+        print(f"✅ [VERBOSE] Executive summary length: {len(exec_summary)} chars")
+        print(f"✅ [VERBOSE] Detailed findings count: {len(detailed_findings)}")
+
+        return verbose_result
 
     def _get_result_for_question(self, question: str, results: List[Any]) -> Dict:
         """Helper to find result for a specific question"""
@@ -936,14 +1006,41 @@ Return as JSON:
             return response.json()['choices'][0]['message']['content']
 
     def _parse_json_response(self, response: str) -> Dict:
-        """Extract and parse JSON from LLM response"""
+        """Extract and parse JSON from LLM response with robust error handling"""
+        import re
+
+        # Strip markdown code blocks if present
+        response = response.replace('```json', '').replace('```', '').strip()
+
         # Try to find JSON in response
         start = response.find('{')
         end = response.rfind('}') + 1
 
         if start != -1 and end > start:
             json_str = response[start:end]
-            return json.loads(json_str)
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError as e:
+                print(f"⚠️ JSON parse error: {str(e)}")
+                print(f"⚠️ Problematic JSON (first 500 chars): {json_str[:500]}")
+
+                # Try to fix common JSON issues
+                # 1. Remove trailing commas
+                json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+
+                # 2. Escape unescaped quotes in strings (basic attempt)
+                # This is a simplified fix - may not catch all cases
+
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as e2:
+                    print(f"⚠️ JSON still invalid after cleanup: {str(e2)}")
+                    # Return minimal valid response
+                    return {}
 
         # Fallback: try to parse entire response
-        return json.loads(response)
+        try:
+            return json.loads(response)
+        except json.JSONDecodeError:
+            print(f"⚠️ Could not parse JSON from response")
+            return {}

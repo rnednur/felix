@@ -4,6 +4,53 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
 })
 
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// Handle 401 errors and refresh token
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+
+    // If 401 and not already retrying
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      try {
+        const refreshToken = localStorage.getItem('refresh_token')
+        if (refreshToken) {
+          const response = await axios.post('/api/v1/auth/refresh', {
+            refresh_token: refreshToken
+          })
+
+          const { access_token, refresh_token: newRefreshToken } = response.data
+          localStorage.setItem('access_token', access_token)
+          localStorage.setItem('refresh_token', newRefreshToken)
+
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${access_token}`
+          return api(originalRequest)
+        }
+      } catch (refreshError) {
+        // Refresh failed, redirect to login
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      }
+    }
+
+    return Promise.reject(error)
+  }
+)
+
 export interface Dataset {
   id: string
   name: string
@@ -15,6 +62,32 @@ export interface Dataset {
   dataset_version: number
   created_at: string
   updated_at: string
+}
+
+export interface DatasetGroupMembership {
+  id: string
+  dataset_id: string
+  alias?: string
+  display_order: number
+  dataset: Dataset
+  created_at: string
+}
+
+export interface DatasetGroup {
+  id: string
+  name: string
+  description?: string
+  created_at: string
+  updated_at: string
+  memberships: DatasetGroupMembership[]
+}
+
+export interface DatasetGroupListItem {
+  id: string
+  name: string
+  description?: string
+  created_at: string
+  dataset_count: number
 }
 
 export interface QueryResult {
@@ -72,6 +145,20 @@ export interface DeepResearchResult {
   error?: string
 }
 
+export interface ColumnMetadataSuggestion {
+  column: string
+  description: string
+  business_definition?: string
+  semantic_type?: string
+  examples?: string[]
+}
+
+export interface AIDescribeColumnsResult {
+  success: boolean
+  suggestions: ColumnMetadataSuggestion[]
+  message: string
+}
+
 // Datasets
 export const uploadDataset = async (formData: FormData): Promise<Dataset> => {
   const { data } = await api.post('/datasets/upload', formData)
@@ -88,13 +175,92 @@ export const listDatasets = async (): Promise<Dataset[]> => {
   return data
 }
 
-export const getDatasetPreview = async (id: string) => {
-  const { data } = await api.get(`/datasets/${id}/preview`)
+export const getDatasetPreview = async (id: string, limit: number = 100) => {
+  const { data } = await api.get(`/datasets/${id}/preview`, {
+    params: { limit }
+  })
+  return data
+}
+
+export const getDatasetAllRows = async (id: string) => {
+  // Use preview endpoint with very high limit to get all rows
+  const { data } = await api.get(`/datasets/${id}/preview`, {
+    params: { limit: 1000000 }  // Large enough for most datasets
+  })
   return data
 }
 
 export const getDatasetSchema = async (id: string) => {
   const { data } = await api.get(`/datasets/${id}/schema`)
+  return data
+}
+
+export const deleteDataset = async (id: string): Promise<void> => {
+  await api.delete(`/datasets/${id}`)
+}
+
+export const importGoogleSheets = async (request: {
+  google_sheets_url: string
+  sheet_name?: string
+  access_token: string
+}): Promise<Dataset> => {
+  const { data } = await api.post('/datasets/import-google-sheets', request)
+  return data
+}
+
+// Dataset Groups
+export const createDatasetGroup = async (group: {
+  name: string
+  description?: string
+}): Promise<DatasetGroup> => {
+  const { data } = await api.post('/dataset-groups/', group)
+  return data
+}
+
+export const listDatasetGroups = async (): Promise<DatasetGroupListItem[]> => {
+  const { data } = await api.get('/dataset-groups/')
+  return data
+}
+
+export const getDatasetGroup = async (id: string): Promise<DatasetGroup> => {
+  const { data } = await api.get(`/dataset-groups/${id}`)
+  return data
+}
+
+export const updateDatasetGroup = async (
+  id: string,
+  updates: { name?: string; description?: string }
+): Promise<DatasetGroup> => {
+  const { data } = await api.patch(`/dataset-groups/${id}`, updates)
+  return data
+}
+
+export const deleteDatasetGroup = async (id: string): Promise<void> => {
+  await api.delete(`/dataset-groups/${id}`)
+}
+
+export const addDatasetToGroup = async (
+  groupId: string,
+  membership: { dataset_id: string; alias?: string; display_order?: number }
+): Promise<DatasetGroupMembership> => {
+  const { data } = await api.post(`/dataset-groups/${groupId}/datasets`, membership)
+  return data
+}
+
+export const removeDatasetFromGroup = async (
+  groupId: string,
+  datasetId: string
+): Promise<void> => {
+  await api.delete(`/dataset-groups/${groupId}/datasets/${datasetId}`)
+}
+
+export const getDatasetGroupSchemas = async (groupId: string) => {
+  const { data } = await api.get(`/dataset-groups/${groupId}/schemas`)
+  return data
+}
+
+export const getDatasetGroupPreview = async (groupId: string) => {
+  const { data } = await api.get(`/dataset-groups/${groupId}/preview`)
   return data
 }
 
@@ -108,24 +274,36 @@ export const getDatasetSummary = async (id: string) => {
   return data
 }
 
+export const aiDescribeColumns = async (datasetId: string): Promise<AIDescribeColumnsResult> => {
+  const { data } = await api.post(`/metadata/datasets/${datasetId}/ai-describe-columns`)
+  return data
+}
+
+export const getColumnMetadata = async (datasetId: string) => {
+  const { data } = await api.get(`/metadata/datasets/${datasetId}/columns`)
+  return data
+}
+
 // Queries
 export const executeNLQuery = async (
-  datasetId: string,
-  query: string
+  query: string,
+  options: { datasetId?: string; groupId?: string }
 ): Promise<QueryResult> => {
   const { data } = await api.post('/queries/nl', {
-    dataset_id: datasetId,
+    dataset_id: options.datasetId,
+    group_id: options.groupId,
     query,
   })
   return data
 }
 
 export const executeSQLQuery = async (
-  datasetId: string,
-  sql: string
+  sql: string,
+  options: { datasetId?: string; groupId?: string }
 ): Promise<QueryResult> => {
   const { data } = await api.post('/queries/sql', {
-    dataset_id: datasetId,
+    dataset_id: options.datasetId,
+    group_id: options.groupId,
     sql,
   })
   return data

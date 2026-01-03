@@ -16,29 +16,37 @@ class VizService:
 
         # Bar chart: 1 categorical + 1 numeric
         if len(cat_cols) >= 1 and len(num_cols) >= 1:
+            title = f"{num_cols[0]} by {cat_cols[0]}"
             suggestions.append({
                 'type': 'bar',
+                'title': title,
                 'spec': self.generate_vega_bar(df, cat_cols[0], num_cols[0])
             })
 
         # Line chart: time series
         if len(date_cols) >= 1 and len(num_cols) >= 1:
+            title = f"{num_cols[0]} Over Time"
             suggestions.append({
                 'type': 'line',
+                'title': title,
                 'spec': self.generate_vega_line(df, date_cols[0], num_cols[0])
             })
 
         # Scatter: 2 numeric
         if len(num_cols) >= 2:
+            title = f"{num_cols[0]} vs {num_cols[1]}"
             suggestions.append({
                 'type': 'scatter',
+                'title': title,
                 'spec': self.generate_vega_scatter(df, num_cols[0], num_cols[1])
             })
 
         # Heatmap: categorical x categorical with numeric
         if len(cat_cols) >= 2 and len(num_cols) >= 1:
+            title = f"{num_cols[0]} by {cat_cols[0]} and {cat_cols[1]}"
             suggestions.append({
                 'type': 'heatmap',
+                'title': title,
                 'spec': self.generate_vega_heatmap(df, cat_cols[0], cat_cols[1], num_cols[0])
             })
 

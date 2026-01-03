@@ -5,9 +5,17 @@ from typing import Optional
 class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
+    DB_SCHEMA: Optional[str] = None  # Database schema name (e.g., 'myapp', 'public')
     OPENROUTER_API_KEY: str
     OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
+    PRESENTATION_MODEL: str = "google/gemini-2.0-flash-exp:free"  # Gemini for presentations
     ENVIRONMENT: str = "development"
+
+    # Security settings
+    SECRET_KEY: str = "your-secret-key-change-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     DATA_DIR: str = "data"
     DATASETS_DIR: str = "data/datasets"
