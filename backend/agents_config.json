@@ -1,0 +1,62 @@
+{
+  "agents": [
+    {
+      "name": "query_agent",
+      "display_name": "SQL Query Agent",
+      "description": "Translates natural language to SQL queries using DuckDB",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "sql_generation",
+        "aggregations",
+        "filtering",
+        "joins",
+        "window_functions"
+      ],
+      "libraries": ["duckdb"],
+      "service_integration": "NLToSQLService",
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "prompts": {
+        "default": "You are a SQL expert. Generate efficient DuckDB SQL queries."
+      },
+      "intent_keywords": [
+        "select", "filter", "group by", "count", "sum", "average",
+        "join", "where", "order by", "top", "limit", "show me",
+        "find", "get", "list", "display"
+      ]
+    },
+    {
+      "name": "data_scouting_agent",
+      "display_name": "Data Scouting Agent",
+      "description": "Profiles data and detects quality issues, patterns, and PII",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "pattern_detection",
+        "pii_detection",
+        "quality_assessment",
+        "semantic_typing",
+        "metadata_validation"
+      ],
+      "libraries": ["pandas", "numpy"],
+      "service_integration": "DataScoutingService",
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "prompts": {
+        "default": "You are a data profiling expert. Analyze data patterns and quality."
+      },
+      "intent_keywords": [
+        "profile", "scout", "analyze data", "quality", "pii",
+        "patterns", "data types", "metadata", "describe data",
+        "inspect", "check data", "data issues"
+      ]
+    }
+  ]
+}
