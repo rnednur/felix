@@ -4,7 +4,7 @@
 -- Agent Sessions table
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id VARCHAR PRIMARY KEY,
-    user_id VARCHAR REFERENCES users(id),
+    user_id VARCHAR,
     dataset_id VARCHAR NOT NULL REFERENCES datasets(id),
     name VARCHAR,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

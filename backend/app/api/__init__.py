@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import datasets, dataset_groups, queries, visualizations, analysis, python_analysis, deep_research, metadata, auth, sharing, workspaces, canvas_stream, ai_suggestions, data_scouting
+from app.api.endpoints import datasets, dataset_groups, queries, visualizations, analysis, python_analysis, deep_research, metadata, auth, sharing, workspaces, canvas_stream, ai_suggestions, data_scouting, agents
 
 api_router = APIRouter()
 
@@ -17,3 +17,4 @@ api_router.include_router(workspaces.router, prefix="/workspaces", tags=["worksp
 api_router.include_router(canvas_stream.router, prefix="/canvas", tags=["canvas"])
 api_router.include_router(ai_suggestions.router, prefix="/datasets", tags=["ai-suggestions"])
 api_router.include_router(data_scouting.router, prefix="/datasets", tags=["data-scouting"])
+api_router.include_router(agents.router)
