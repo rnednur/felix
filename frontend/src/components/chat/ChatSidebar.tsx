@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Upload, Settings, Send, Code2, Database, Table2, Brain } from 'lucide-react'
+import { Upload, Settings, Send, Code2, Database, Table2, Brain, Bot } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { QuickActions } from './QuickActions'
 
@@ -9,7 +9,7 @@ interface Message {
   content: string
 }
 
-export type AnalysisMode = 'sql' | 'python' | 'auto' | 'deep-research'
+export type AnalysisMode = 'sql' | 'python' | 'auto' | 'deep-research' | 'agent'
 
 interface DatasetInfo {
   name: string
@@ -101,6 +101,7 @@ export function ChatSidebar({
       case 'python': return 'Python Mode'
       case 'auto': return 'Auto Mode'
       case 'deep-research': return 'Deep Research'
+      case 'agent': return 'Agent Mode'
     }
   }
 
@@ -110,6 +111,7 @@ export function ChatSidebar({
       case 'python': return <Code2 className="h-4 w-4" />
       case 'auto': return <span className="text-xs font-bold">✨</span>
       case 'deep-research': return <Brain className="h-4 w-4" />
+      case 'agent': return <Bot className="h-4 w-4" />
     }
   }
 
@@ -212,7 +214,7 @@ export function ChatSidebar({
         {onModeChange && (
           <div className="space-y-2">
             <div className="flex gap-1 flex-wrap">
-              {(['auto', 'sql', 'python', 'deep-research'] as AnalysisMode[]).map((mode) => (
+              {(['auto', 'agent', 'sql', 'python', 'deep-research'] as AnalysisMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -226,6 +228,7 @@ export function ChatSidebar({
                   {getModeIcon(mode)}
                   <span>
                     {mode === 'auto' ? 'Auto' :
+                     mode === 'agent' ? 'Agent' :
                      mode === 'sql' ? 'SQL' :
                      mode === 'python' ? 'Python' :
                      'Deep'}
@@ -248,6 +251,8 @@ export function ChatSidebar({
                 ? 'Try: "Train a model to predict Sales"'
                 : analysisMode === 'sql'
                 ? 'Ask about your data...'
+                : analysisMode === 'agent'
+                ? 'Try: "Profile this dataset" or "Show first 10 rows"'
                 : 'Ask anything...'
             }
             disabled={isLoading || !datasetId}
@@ -258,6 +263,11 @@ export function ChatSidebar({
           </Button>
         </form>
 
+        {analysisMode === 'agent' && (
+          <div className="text-xs text-gray-500">
+            🤖 Agent mode: Specialized agents auto-route your query
+          </div>
+        )}
         {analysisMode === 'python' && (
           <div className="text-xs text-gray-500">
             💡 Python mode: ML models, stats, workflows

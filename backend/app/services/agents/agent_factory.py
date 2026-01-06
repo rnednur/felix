@@ -12,6 +12,10 @@ from app.services.agents.context_manager import ContextManager
 from app.services.agents.agent_orchestrator import AgentOrchestrator
 from app.services.agents.query_agent import QueryAgent
 from app.services.agents.data_scouting_agent import DataScoutingAgent
+from app.services.agents.visualization_agent import VisualizationAgent
+from app.services.agents.statistical_agent import StatisticalAgent
+from app.services.agents.ml_agent import MLAgent
+from app.services.agents.geospatial_agent import GeospatialAgent
 
 
 class AgentFactory:
@@ -25,6 +29,10 @@ class AgentFactory:
     AGENT_CLASSES: Dict[str, type] = {
         'query_agent': QueryAgent,
         'data_scouting_agent': DataScoutingAgent,
+        'visualization_agent': VisualizationAgent,
+        'statistical_agent': StatisticalAgent,
+        'ml_agent': MLAgent,
+        'geospatial_agent': GeospatialAgent,
     }
 
     @classmethod

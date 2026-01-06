@@ -57,6 +57,104 @@
         "patterns", "data types", "metadata", "describe data",
         "inspect", "check data", "data issues"
       ]
+    },
+    {
+      "name": "visualization_agent",
+      "display_name": "Visualization Agent",
+      "description": "Creates optimal charts and visualizations based on data characteristics",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "chart_generation",
+        "vega_lite_specs",
+        "visualization_recommendation",
+        "chart_type_selection"
+      ],
+      "libraries": ["duckdb"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "chart", "graph", "plot", "visualize", "show", "display",
+        "create chart", "bar chart", "line chart", "scatter", "histogram",
+        "trend", "distribution", "comparison"
+      ]
+    },
+    {
+      "name": "statistical_agent",
+      "display_name": "Statistical Analysis Agent",
+      "description": "Performs statistical analysis including correlation, outliers, and distributions",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "correlation_analysis",
+        "outlier_detection",
+        "distribution_analysis",
+        "descriptive_statistics",
+        "hypothesis_testing"
+      ],
+      "libraries": ["duckdb"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "correlat", "statistic", "outlier", "anomaly", "distribution",
+        "mean", "median", "standard deviation", "variance", "relationship",
+        "test", "significance", "hypothesis"
+      ]
+    },
+    {
+      "name": "ml_agent",
+      "display_name": "ML/Prediction Agent",
+      "description": "Provides machine learning recommendations for prediction, classification, and clustering",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "ml_recommendation",
+        "regression_guidance",
+        "classification_guidance",
+        "clustering_guidance",
+        "feature_importance"
+      ],
+      "libraries": [],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "predict", "forecast", "classify", "categorize", "cluster",
+        "segment", "machine learning", "ml", "model", "train",
+        "regression", "classification", "feature importance"
+      ]
+    },
+    {
+      "name": "geospatial_agent",
+      "display_name": "Geospatial Agent",
+      "description": "Handles location data and creates map visualizations",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "spatial_detection",
+        "map_configuration",
+        "coordinate_analysis",
+        "geographic_insights"
+      ],
+      "libraries": ["duckdb"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "map", "location", "geographic", "spatial", "coordinates",
+        "latitude", "longitude", "address", "distance", "nearest",
+        "proximity", "geocode", "geospatial"
+      ]
     }
   ]
 }

@@ -1,12 +1,15 @@
 """
 Agent API endpoints
+
+Fixed datetime serialization for JSONB storage
 """
 import uuid
-from datetime import datetime
+import json
+from datetime import datetime, date
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import AsyncIterator
+from typing import AsyncIterator, Any
 
 from app.core.database import get_db
 from app.schemas.agent import (
@@ -21,6 +24,49 @@ from app.services.agents import (
 from app.models.agent_session import AgentSession, AgentMessage
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+
+
+def serialize_for_json(obj: Any) -> Any:
+    """
+    Recursively serialize objects to JSON-compatible format
+    Handles datetime, date, numpy/pandas types, and other non-JSON types
+    """
+    import numpy as np
+    import pandas as pd
+
+    # Handle None
+    if obj is None:
+        return None
+
+    # Handle datetime types (including pandas Timestamp)
+    if isinstance(obj, (datetime, date)) or (hasattr(pd, 'Timestamp') and isinstance(obj, pd.Timestamp)):
+        return obj.isoformat()
+
+    # Handle numpy/pandas numeric types
+    if isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+
+    # Handle numpy bool
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+
+    # Handle dictionaries - also convert keys
+    if isinstance(obj, dict):
+        return {
+            serialize_for_json(k): serialize_for_json(v)
+            for k, v in obj.items()
+        }
+
+    # Handle lists, tuples, sets
+    if isinstance(obj, (list, tuple, set)):
+        return [serialize_for_json(item) for item in obj]
+
+    # Handle other objects with __dict__
+    if hasattr(obj, '__dict__') and not isinstance(obj, type):
+        return serialize_for_json(obj.__dict__)
+
+    # Return as-is for JSON-compatible types
+    return obj
 
 
 @router.get("/")
@@ -145,7 +191,7 @@ async def chat_with_agent(
             content=response.data.get('summary', ''),
             agent_name=agent_name,
             code=response.code,
-            result_data=response.data,
+            result_data=serialize_for_json(response.data),
             timestamp=datetime.utcnow()
         )
         db.add(assistant_message)

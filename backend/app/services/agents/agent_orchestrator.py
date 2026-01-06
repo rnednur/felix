@@ -480,18 +480,35 @@ Execution Plan (JSON only):"""
 
         # Generate summary
         agent_names = [r.agent_name for r in results]
-        summary = f"Executed {len(results)} agents: {', '.join(agent_names)}"
+
+        # Build detailed summaries from each agent
+        agent_summaries = []
+        for agent_name, data in combined_data.items():
+            if isinstance(data, dict) and 'summary' in data:
+                agent_summaries.append(f"**{agent_name}**: {data['summary']}")
+
+        summary_text = "\n".join(agent_summaries) if agent_summaries else f"Executed {len(results)} agents: {', '.join(agent_names)}"
 
         if errors:
-            summary += f". Errors: {'; '.join(errors)}"
+            summary_text += f"\n\n**Errors**: {'; '.join(errors)}"
+
+        # Flatten agent results for easier frontend display
+        flattened_results = []
+        for agent_name, data in combined_data.items():
+            flattened_results.append({
+                "agent": agent_name,
+                "success": any(r.agent_name == agent_name and r.success for r in results),
+                "data": data
+            })
 
         return AgentResponse(
             agent_name="multi_agent",
             success=success,
             data={
-                "summary": summary,
+                "summary": summary_text,
                 "query": query,
-                "agent_results": combined_data,
+                "results": flattened_results,  # Flattened for easier access
+                "agent_results": combined_data,  # Keep original for backwards compatibility
                 "agents_executed": agent_names
             },
             metadata={

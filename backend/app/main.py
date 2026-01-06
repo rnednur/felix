@@ -45,7 +45,7 @@ async def startup_event():
 
         # Initialize agent system
         from app.services.agents import setup_agent_system
-        setup_agent_system(redis_client, config_path="backend/agents_config.json")
+        setup_agent_system(redis_client, config_path="agents_config.json")
 
     except Exception as e:
         print(f"⚠️  Warning: Could not initialize agent system: {e}")

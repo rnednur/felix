@@ -16,12 +16,13 @@ import numpy as np
 from typing import Dict, List, Any, Optional
 import re
 import json
-from datetime import datetime
+from datetime import datetime, date
 from app.services.duckdb_service import DuckDBService
 from app.services.storage_service import StorageService
-import openai
+from app.core.config import settings
 import os
 import hashlib
+import openai
 
 
 class DataScoutingService:
@@ -38,20 +39,34 @@ class DataScoutingService:
         self.duckdb_service = DuckDBService()
         self.storage_service = StorageService()
 
-        # Configure OpenAI for OpenRouter
+        # Configure openai library to use OpenRouter
         openai.api_base = "https://openrouter.ai/api/v1"
-        openai.api_key = os.getenv("OPENROUTER_API_KEY")
+        openai.api_key = settings.OPENROUTER_API_KEY
 
         # Simple in-memory cache for LLM pattern discoveries (keyed by column hash)
         self._pattern_cache: Dict[str, Dict[str, Any]] = {}
 
-        # Configuration from environment variables
-        # Use OPENROUTER_MODEL if set, otherwise fall back to LLM_MODEL or default
-        self.llm_model = os.getenv("OPENROUTER_MODEL") or os.getenv("LLM_MODEL", "anthropic/claude-3.5-sonnet")
+        # LLM configuration from settings
+        self.llm_model = settings.OPENROUTER_MODEL
         self.llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
         self.llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "500"))
 
-        # Log configuration on initialization
+    def _serialize_for_json(self, obj: Any) -> Any:
+        """Helper to serialize datetime/date objects for JSON"""
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        elif isinstance(obj, (np.integer, np.floating)):
+            return obj.item()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        elif isinstance(obj, dict):
+            return {self._serialize_for_json(k): self._serialize_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self._serialize_for_json(item) for item in obj]
+        else:
+            return obj
+
+    # Log configuration on initialization
         print(f"[DataScoutingService] Initialized with model: {self.llm_model}, temp: {self.llm_temperature}, max_tokens: {self.llm_max_tokens}")
 
     def scout_dataset(self, dataset_id: str, sample_size: int = 1000) -> Dict[str, Any]:
@@ -290,6 +305,9 @@ class DataScoutingService:
                 'error': 'No non-null values to analyze'
             }
 
+        # Serialize sample to handle datetime/date objects
+        serialized_sample = self._serialize_for_json(sample)
+
         # Build context from rule-based patterns
         pattern_context = []
         if base_patterns['email_pattern'] > 10:
@@ -308,7 +326,7 @@ class DataScoutingService:
 **Column name:** {column_name}
 
 **Sample values (first 20):**
-{json.dumps(sample, indent=2)}
+{json.dumps(serialized_sample, indent=2)}
 
 **Rule-based detection found:**
 {pattern_summary}
