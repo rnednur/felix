@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { cn } from '@/lib/utils'
 
 interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'default' | 'primary' | 'secondary' | 'ghost' | 'destructive'
@@ -10,23 +11,48 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
   ({ className = '', variant = 'default', size = 'md', tooltip, children, ...props }, ref) => {
     const [showTooltip, setShowTooltip] = React.useState(false)
 
-    // Variant styles
     const variantClasses = {
-      default: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-sm',
-      primary: 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md',
-      secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-      ghost: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
-      destructive: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200',
+      default: [
+        'bg-card border border-border text-foreground',
+        'hover:bg-muted hover:border-border-strong',
+        'shadow-sm',
+      ].join(' '),
+      primary: [
+        'bg-primary text-primary-foreground',
+        'hover:bg-primary-hover',
+        'shadow-sm hover:shadow-md',
+      ].join(' '),
+      secondary: [
+        'bg-secondary text-secondary-foreground',
+        'hover:bg-secondary-hover',
+      ].join(' '),
+      ghost: [
+        'text-muted-foreground',
+        'hover:bg-muted hover:text-foreground',
+      ].join(' '),
+      destructive: [
+        'bg-destructive-muted text-destructive border border-destructive/20',
+        'hover:bg-destructive hover:text-destructive-foreground hover:border-destructive',
+      ].join(' '),
     }
 
-    // Size styles
     const sizeClasses = {
       sm: 'h-8 w-8',
       md: 'h-10 w-10',
       lg: 'h-12 w-12',
     }
 
-    const buttonClasses = `inline-flex items-center justify-center rounded-lg font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`
+    const buttonClasses = cn(
+      'inline-flex items-center justify-center rounded-lg',
+      'font-medium',
+      'transition-all duration-150 ease-out',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      'disabled:pointer-events-none disabled:opacity-50',
+      'active:scale-[0.95]',
+      variantClasses[variant],
+      sizeClasses[size],
+      className
+    )
 
     return (
       <div className="relative inline-block">
@@ -40,9 +66,19 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
           {children}
         </button>
         {tooltip && showTooltip && (
-          <div className="absolute z-[10] px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-lg whitespace-nowrap -top-5 left-1/2 transform -translate-x-1/2 pointer-events-none animate-in fade-in-0 zoom-in-95 duration-200">
+          <div
+            className={cn(
+              'absolute z-tooltip px-2.5 py-1.5',
+              'text-xs font-medium text-popover-foreground',
+              'bg-popover border border-border rounded-md shadow-elevation-2',
+              'whitespace-nowrap',
+              '-top-10 left-1/2 transform -translate-x-1/2',
+              'pointer-events-none',
+              'animate-fade-in'
+            )}
+          >
             {tooltip}
-            <div className="absolute w-2 h-2 bg-gray-900 transform rotate-45 -bottom-1 left-1/2 -translate-x-1/2"></div>
+            <div className="absolute w-2 h-2 bg-popover border-b border-r border-border transform rotate-45 -bottom-1 left-1/2 -translate-x-1/2" />
           </div>
         )}
       </div>

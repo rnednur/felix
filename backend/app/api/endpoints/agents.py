@@ -119,12 +119,20 @@ async def chat_with_agent(
         "metadata": {...}
     }
     """
+    import logging
+    logger = logging.getLogger("api.agents")
+
     try:
+        logger.info(f"🎯 AGENT CHAT REQUEST: query='{request.query}', dataset_id={request.dataset_id}, agent_name={request.agent_name}")
+
         orchestrator = get_agent_orchestrator()
         context_manager = get_context_manager()
 
+        logger.info(f"✅ Got orchestrator and context manager")
+
         # Get or create session
         session_id = request.session_id or str(uuid.uuid4())
+        logger.info(f"📝 Session ID: {session_id}")
 
         # Check if session exists in database
         session = db.query(AgentSession).filter(
@@ -132,6 +140,7 @@ async def chat_with_agent(
         ).first()
 
         if not session:
+            logger.info(f"🆕 Creating new session: {session_id}")
             # Create new session
             session = AgentSession(
                 id=session_id,
@@ -142,18 +151,28 @@ async def chat_with_agent(
             )
             db.add(session)
             db.commit()
+        else:
+            logger.info(f"♻️  Using existing session: {session_id}")
 
         # Process query
         if request.agent_name:
+            logger.info(f"🎭 Direct agent mode: {request.agent_name}")
             # Direct agent chat
             agent_registry = get_agent_registry()
+            logger.info(f"📋 Registry has {agent_registry.get_agent_count()} agents, {agent_registry.get_enabled_count()} enabled")
+
             agent = agent_registry.get_agent(request.agent_name)
 
             if not agent:
+                logger.error(f"❌ Agent not found: {request.agent_name}")
+                logger.info(f"Available agents: {list(agent_registry.agents.keys())}")
                 raise HTTPException(404, f"Agent '{request.agent_name}' not found")
+
+            logger.info(f"✅ Found agent: {agent.config.display_name}")
 
             from app.schemas.agent import AgentRequest, Message
             context = await context_manager.get_context(session_id, request.dataset_id)
+            logger.info(f"📦 Got context with {len(context.conversation_history)} messages")
 
             agent_request = AgentRequest(
                 query=request.query,
@@ -161,17 +180,22 @@ async def chat_with_agent(
                 task_type="chat"
             )
 
+            logger.info(f"🚀 Calling agent.process()...")
             response = await agent.process(agent_request, context)
+            logger.info(f"✅ Agent returned: success={response.success}, agent={response.agent_name}")
             agent_name = request.agent_name
 
         else:
+            logger.info(f"🤖 Orchestrated mode: auto-selecting agent")
             # Orchestrated chat (auto-select agent)
+            logger.info(f"🚀 Calling orchestrator.process_query()...")
             response = await orchestrator.process_query(
                 query=request.query,
                 dataset_id=request.dataset_id,
                 session_id=session_id,
                 stream=False
             )
+            logger.info(f"✅ Orchestrator returned: success={response.success}, agent={response.agent_name}")
             agent_name = response.agent_name
 
         # Save message to database

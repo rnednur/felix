@@ -1,12 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Upload, Settings, Send, Code2, Database, Table2, Brain, Bot } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Send, Database, Code2, Brain, Bot, Sparkles, ChevronRight, Check, AlertCircle, Loader2 } from 'lucide-react'
 import { QuickActions } from './QuickActions'
+import { cn } from '@/lib/utils'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  status?: 'success' | 'error' | 'loading'
+  metadata?: {
+    rowCount?: number
+    executionTime?: number
+    insights?: string[]
+  }
 }
 
 export type AnalysisMode = 'sql' | 'python' | 'auto' | 'deep-research' | 'agent'
@@ -44,7 +50,7 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({
   datasetId,
-  datasetInfo,
+  datasetInfo: _datasetInfo,
   onQuerySubmit,
   messages,
   isLoading,
@@ -62,28 +68,22 @@ export function ChatSidebar({
   onInfographicGenerationMethodChange
 }: ChatSidebarProps) {
   const [input, setInput] = useState('')
-  const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
-  // Generate smart suggestions based on conversation context
   const getQuickSuggestions = (): string[] => {
     if (messages.length === 0) {
-      return ['Describe dataset', 'How many records?', 'Show first 10']
+      return ['Give me an overview', 'Show top 10 rows', 'Key statistics']
     }
-
     const lastMessage = messages[messages.length - 1]
     if (lastMessage.role === 'assistant' && lastMessage.content.includes('Dataset Overview')) {
-      // After showing metadata, suggest queries
       return ['Show first 10', 'Summarize data', 'Group by category']
     } else if (lastMessage.role === 'assistant' && lastMessage.content.includes('records')) {
       return ['Show top 10', 'Group by category', 'Show trends']
     }
-
     return ['Show summary', 'Group data']
   }
 
@@ -95,63 +95,79 @@ export function ChatSidebar({
     }
   }
 
-  const getModeLabel = (mode: AnalysisMode) => {
-    switch (mode) {
-      case 'sql': return 'SQL Mode'
-      case 'python': return 'Python Mode'
-      case 'auto': return 'Auto Mode'
-      case 'deep-research': return 'Deep Research'
-      case 'agent': return 'Agent Mode'
-    }
-  }
-
-  const getModeIcon = (mode: AnalysisMode) => {
-    switch (mode) {
-      case 'sql': return <Database className="h-4 w-4" />
-      case 'python': return <Code2 className="h-4 w-4" />
-      case 'auto': return <span className="text-xs font-bold">✨</span>
-      case 'deep-research': return <Brain className="h-4 w-4" />
-      case 'agent': return <Bot className="h-4 w-4" />
-    }
+  const modeConfig = {
+    auto: { icon: Sparkles, label: 'Auto', color: 'text-amber-600' },
+    agent: { icon: Bot, label: 'Agent', color: 'text-violet-600' },
+    sql: { icon: Database, label: 'SQL', color: 'text-emerald-600' },
+    python: { icon: Code2, label: 'Python', color: 'text-blue-600' },
+    'deep-research': { icon: Brain, label: 'Deep', color: 'text-rose-600' }
   }
 
   return (
-    <div className="flex flex-col bg-white h-screen overflow-hidden">
+    <div className="flex flex-col h-screen bg-background overflow-hidden">
       {/* Header */}
-      <div className="border-b border-gray-200 p-3">
-        <div className="flex items-center gap-1">
-          <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-            <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2s2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 9c0-1.1.9-2 2-2h2c1.1 0 2 .9 2 2s-.9 2-2 2H5c-1.1 0-2-.9-2-2zm14 0c0-1.1.9-2 2-2h2c1.1 0 2 .9 2 2s-.9 2-2 2h-2c-1.1 0-2-.9-2-2zM12 16c-2.2 0-4 1.8-4 4v2h8v-2c0-2.2-1.8-4-4-4zm-6.8-3.2l-1.4-1.4c-.8-.8-.8-2 0-2.8.8-.8 2-.8 2.8 0l1.4 1.4c.8.8.8 2 0 2.8-.8.8-2 .8-2.8 0zm13.6 0c-.8.8-2 .8-2.8 0-.8-.8-.8-2 0-2.8l1.4-1.4c.8-.8 2-.8 2.8 0 .8.8.8 2 0 2.8l-1.4 1.4zM12 13c.6 0 1 .4 1 1s-.4 1-1 1-1-.4-1-1 .4-1 1-1z"/>
-            </svg>
+      <div className="flex-shrink-0 border-b border-border bg-card px-4 py-4">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-11 h-11 bg-gradient-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
+              <Sparkles className="h-5 w-5 text-white" />
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-success rounded-full border-2 border-card" />
           </div>
           <div>
-            <h1 className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Felix</h1>
-            <p className="text-sm text-gray-500">AI Analytics</p>
+            <h1 className="font-display text-xl font-semibold text-foreground tracking-tight">
+              Felix
+            </h1>
+            <p className="text-xs text-muted-foreground">AI Analytics Assistant</p>
           </div>
         </div>
       </div>
 
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background-subtle">
         {messages.length === 0 && (
-          <div className="text-center text-gray-500 text-sm mt-8 px-2">
-            <div className="mb-4">
-              <p className="text-base font-medium text-gray-700">💬 Ask about your data</p>
-            </div>
-            <div className="text-left bg-gray-50 rounded-lg p-3 space-y-2">
-              <p className="text-xs font-semibold text-gray-600">Try these:</p>
-              <div className="space-y-1 text-xs">
-                <p>• "How many records are there?"</p>
-                <p>• "Show top 10 by revenue"</p>
-                <p>• "Summarize sales by category"</p>
-                <p>• "What's the average discount?"</p>
-                <p>• "Show me trends over time"</p>
+          <div className="mt-8 animate-fade-in">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary-muted mb-3">
+                <Sparkles className="h-6 w-6 text-primary" />
               </div>
-              <div className="pt-2 border-t border-gray-200 mt-2">
-                <p className="text-xs text-gray-500">
-                  💡 Check the <strong>Schema</strong> tab to see all columns and stats
-                </p>
+              <h3 className="font-display font-semibold text-foreground mb-1">
+                Ask about your data
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                I can help you explore, analyze, and visualize
+              </p>
+            </div>
+
+            <div className="bg-card rounded-xl border border-border p-4 shadow-sm">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                Try asking
+              </p>
+              <div className="space-y-2">
+                {[
+                  'Give me an overview of this dataset',
+                  'What are the top 10 items by value?',
+                  'Show me trends over time',
+                  'Summarize by category'
+                ].map((suggestion, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setInput(suggestion)
+                      onQuerySubmit(suggestion, analysisMode)
+                    }}
+                    className={cn(
+                      'w-full text-left px-3 py-2.5 rounded-lg text-sm',
+                      'bg-background-subtle hover:bg-muted',
+                      'text-foreground',
+                      'transition-colors duration-150',
+                      'flex items-center gap-2 group'
+                    )}
+                  >
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                    {suggestion}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -160,230 +176,268 @@ export function ChatSidebar({
         {messages.map((message, i) => (
           <div
             key={i}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={cn(
+              'flex animate-fade-in',
+              message.role === 'user' ? 'justify-end' : 'justify-start'
+            )}
           >
+            {message.role === 'assistant' && (
+              <div className="flex-shrink-0 mr-2 mt-1">
+                <div className="w-7 h-7 rounded-lg bg-gradient-primary flex items-center justify-center shadow-sm">
+                  <Sparkles className="h-3.5 w-3.5 text-white" />
+                </div>
+              </div>
+            )}
+
             <div
-              className={`rounded-lg px-4 py-3 max-w-[85%] ${
+              className={cn(
+                'rounded-2xl px-4 py-3 max-w-[85%]',
                 message.role === 'user'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-900'
-              }`}
+                  ? 'bg-primary text-primary-foreground rounded-br-md'
+                  : 'bg-card border border-border shadow-sm rounded-bl-md'
+              )}
             >
+              {/* Message Status Indicator */}
+              {message.role === 'assistant' && message.metadata?.rowCount !== undefined && (
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border">
+                  <div className="flex items-center gap-1.5 text-xs text-success">
+                    <Check className="h-3.5 w-3.5" />
+                    <span className="font-medium">Found {message.metadata.rowCount.toLocaleString()} results</span>
+                  </div>
+                  {message.metadata.executionTime && (
+                    <span className="text-xs text-muted-foreground">
+                      {message.metadata.executionTime}ms
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div
-                className="text-sm whitespace-pre-wrap"
-                style={{
-                  lineHeight: '1.5',
-                }}
+                className={cn(
+                  'text-sm leading-relaxed',
+                  message.role === 'assistant' && 'text-foreground'
+                )}
                 dangerouslySetInnerHTML={{
                   __html: message.content
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
                     .replace(/\n/g, '<br/>')
                 }}
               />
+
+              {/* AI Insights */}
+              {message.role === 'assistant' && message.metadata?.insights && message.metadata.insights.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Key Insights</p>
+                  <ul className="space-y-1.5">
+                    {message.metadata.insights.map((insight, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-xs text-foreground">
+                        <span className="text-primary mt-0.5">•</span>
+                        {insight}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         ))}
 
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-200 rounded-lg px-4 py-2">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+          <div className="flex justify-start animate-fade-in">
+            <div className="flex-shrink-0 mr-2 mt-1">
+              <div className="w-7 h-7 rounded-lg bg-gradient-primary flex items-center justify-center shadow-sm">
+                <Sparkles className="h-3.5 w-3.5 text-white" />
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                <span className="text-sm text-muted-foreground">Analyzing...</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Invisible element to scroll to */}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Quick Actions */}
       {!isLoading && messages.length > 0 && (
-        <QuickActions suggestions={getQuickSuggestions()} onSelect={(q) => {
-          setInput(q)
-          onQuerySubmit(q)
-        }} />
+        <QuickActions
+          suggestions={getQuickSuggestions()}
+          onSelect={(q) => {
+            setInput(q)
+            onQuerySubmit(q)
+          }}
+        />
       )}
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 p-4 bg-white space-y-3">
+      <div className="flex-shrink-0 border-t border-border bg-card p-4 space-y-3">
         {/* Mode Selector */}
         {onModeChange && (
-          <div className="space-y-2">
-            <div className="flex gap-1 flex-wrap">
-              {(['auto', 'agent', 'sql', 'python', 'deep-research'] as AnalysisMode[]).map((mode) => (
+          <div className="flex gap-1 p-1 bg-muted rounded-lg">
+            {(['auto', 'agent', 'sql', 'python', 'deep-research'] as AnalysisMode[]).map((mode) => {
+              const config = modeConfig[mode]
+              const Icon = config.icon
+              const isActive = analysisMode === mode
+
+              return (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => onModeChange(mode)}
-                  className={`px-2.5 py-1 text-xs rounded-md flex items-center gap-1 transition-colors ${
-                    analysisMode === mode
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  className={cn(
+                    'flex-1 px-2 py-1.5 text-xs font-medium rounded-md',
+                    'flex items-center justify-center gap-1.5',
+                    'transition-all duration-150',
+                    isActive
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
                 >
-                  {getModeIcon(mode)}
-                  <span>
-                    {mode === 'auto' ? 'Auto' :
-                     mode === 'agent' ? 'Agent' :
-                     mode === 'sql' ? 'SQL' :
-                     mode === 'python' ? 'Python' :
-                     'Deep'}
-                  </span>
+                  <Icon className={cn('h-3.5 w-3.5', isActive && config.color)} />
+                  <span className="hidden sm:inline">{config.label}</span>
                 </button>
-              ))}
-            </div>
+              )
+            })}
           </div>
         )}
 
+        {/* Input Form */}
         <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              analysisMode === 'deep-research'
-                ? 'Try: "Why are sales declining in Q3?"'
-                : analysisMode === 'python'
-                ? 'Try: "Train a model to predict Sales"'
-                : analysisMode === 'sql'
-                ? 'Ask about your data...'
-                : analysisMode === 'agent'
-                ? 'Try: "Profile this dataset" or "Show first 10 rows"'
-                : 'Ask anything...'
-            }
-            disabled={isLoading || !datasetId}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-          />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim() || !datasetId}>
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about your data..."
+              disabled={isLoading || !datasetId}
+              className={cn(
+                'w-full px-4 py-2.5 pr-4',
+                'bg-background border border-border rounded-xl',
+                'text-sm text-foreground placeholder:text-muted-foreground',
+                'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'transition-all duration-150'
+              )}
+            />
+          </div>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={isLoading || !input.trim() || !datasetId}
+            className="h-10 w-10 rounded-xl shadow-sm"
+          >
             <Send className="h-4 w-4" />
           </Button>
         </form>
 
+        {/* Mode Hints */}
         {analysisMode === 'agent' && (
-          <div className="text-xs text-gray-500">
-            🤖 Agent mode: Specialized agents auto-route your query
-          </div>
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Bot className="h-3.5 w-3.5 text-violet-500" />
+            Agent mode auto-routes to specialized AI agents
+          </p>
         )}
         {analysisMode === 'python' && (
-          <div className="text-xs text-gray-500">
-            💡 Python mode: ML models, stats, workflows
-          </div>
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Code2 className="h-3.5 w-3.5 text-blue-500" />
+            Python mode for ML models and advanced analysis
+          </p>
         )}
         {analysisMode === 'deep-research' && (
           <div className="space-y-3">
-            <div className="text-xs text-gray-500">
-              🧠 Deep research: Multi-stage analysis with insights
-            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Brain className="h-3.5 w-3.5 text-rose-500" />
+              Deep research for comprehensive multi-stage analysis
+            </p>
 
             {/* Verbose Mode Toggle */}
-            <div className="space-y-2 bg-purple-50 border border-purple-200 rounded-lg p-3">
+            <div className="bg-muted rounded-lg p-3 space-y-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={verboseMode}
                   onChange={(e) => onVerboseModeToggle?.(e.target.checked)}
-                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  className="rounded border-border text-primary focus:ring-primary/20"
                 />
-                <span className="text-sm font-medium text-gray-700">
-                  📄 Verbose Mode (Multi-page comprehensive analysis)
+                <span className="text-sm font-medium text-foreground">
+                  Verbose Mode
                 </span>
               </label>
-              {verboseMode && (
-                <div className="ml-6 text-xs text-gray-600">
-                  Includes: Executive Summary, Methodology, Detailed Findings, Cross-Analysis, Limitations, Recommendations, Technical Appendix
-                </div>
-              )}
-              {!verboseMode && (
-                <div className="ml-6 text-xs text-gray-500">
-                  Brief mode: Quick insights and key findings only
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground pl-6">
+                {verboseMode
+                  ? 'Full analysis with methodology, findings, and recommendations'
+                  : 'Quick insights and key findings only'}
+              </p>
             </div>
 
             {/* Infographic Options */}
-            <div className="space-y-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="bg-muted rounded-lg p-3 space-y-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={generateInfographic}
                   onChange={(e) => onInfographicToggle?.(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-border text-primary focus:ring-primary/20"
                 />
-                <span className="text-sm font-medium text-gray-700">
-                  📊 Generate infographic report
+                <span className="text-sm font-medium text-foreground">
+                  Generate Infographic
                 </span>
               </label>
 
               {generateInfographic && (
-                <div className="ml-6 space-y-2">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Generation Method:
-                    </label>
-                    <select
-                      value={infographicGenerationMethod}
-                      onChange={(e) => onInfographicGenerationMethodChange?.(e.target.value as 'template' | 'ai')}
-                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="template">Template (Free, Fast)</option>
-                      <option value="ai">AI-Powered (Gemini Nano Banana Pro, Premium)</option>
-                    </select>
-                  </div>
+                <div className="pl-6 space-y-2 pt-2">
+                  <select
+                    value={infographicGenerationMethod}
+                    onChange={(e) => onInfographicGenerationMethodChange?.(e.target.value as 'template' | 'ai')}
+                    className="w-full text-xs bg-card border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="template">Template (Free)</option>
+                    <option value="ai">AI-Powered (Premium)</option>
+                  </select>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Format:
-                    </label>
-                    <select
-                      value={infographicFormat}
-                      onChange={(e) => onInfographicFormatChange?.(e.target.value as 'pdf' | 'png')}
-                      className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="pdf">PDF (best for reports)</option>
-                      <option value="png">PNG (best for presentations)</option>
-                    </select>
-                  </div>
+                  <select
+                    value={infographicFormat}
+                    onChange={(e) => onInfographicFormatChange?.(e.target.value as 'pdf' | 'png')}
+                    className="w-full text-xs bg-card border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="pdf">PDF</option>
+                    <option value="png">PNG</option>
+                  </select>
 
                   {infographicGenerationMethod === 'template' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Theme:
-                      </label>
-                      <select
-                        value={infographicColorScheme}
-                        onChange={(e) => onInfographicColorSchemeChange?.(e.target.value as 'professional' | 'modern' | 'corporate')}
-                        className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="professional">Professional (clean blue)</option>
-                        <option value="modern">Modern (dark navy)</option>
-                        <option value="corporate">Corporate (traditional)</option>
-                      </select>
-                    </div>
+                    <select
+                      value={infographicColorScheme}
+                      onChange={(e) => onInfographicColorSchemeChange?.(e.target.value as 'professional' | 'modern' | 'corporate')}
+                      className="w-full text-xs bg-card border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="professional">Professional</option>
+                      <option value="modern">Modern</option>
+                      <option value="corporate">Corporate</option>
+                    </select>
                   )}
 
                   {infographicGenerationMethod === 'ai' && (
-                    <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
-                      ⚠️ AI generation uses Gemini Nano Banana Pro and incurs API costs
-                    </div>
+                    <p className="text-xs text-warning flex items-center gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      AI generation incurs API costs
+                    </p>
                   )}
                 </div>
               )}
             </div>
           </div>
         )}
+
+        {/* Slash Commands Help */}
         {input.startsWith('/') && (
-          <div className="text-xs bg-blue-50 text-blue-700 p-2 rounded border border-blue-200">
-            <div className="font-medium mb-1">Slash Commands:</div>
-            <div className="space-y-0.5">
-              <div><code>/metadata [instruction]</code> - Update column metadata with AI</div>
-              <div><code>/rule [instruction]</code> - Create query rules with AI</div>
-            </div>
-            <div className="mt-1 text-blue-600">
-              Examples: <code>/metadata mark email as PII</code> or <code>/rule only show active users</code>
+          <div className="bg-primary-muted border border-primary/20 rounded-lg p-3">
+            <p className="text-xs font-medium text-foreground mb-2">Slash Commands</p>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p><code className="text-primary">/metadata</code> - Update column metadata</p>
+              <p><code className="text-primary">/rule</code> - Create query rules</p>
             </div>
           </div>
         )}

@@ -91,35 +91,58 @@ def initialize_agent_system(
     Returns:
         Tuple of (AgentRegistry, AgentOrchestrator, ContextManager)
     """
+    import logging
+    logger = logging.getLogger("agent.factory")
+
+    logger.info(f"🔧 Initializing agent system from config: {config_path}")
+
     # Create core services
     llm_service = LLMService()
     context_manager = ContextManager(redis_client)
     agent_registry = AgentRegistry()
 
+    logger.info(f"✅ Created core services: LLMService, ContextManager, AgentRegistry")
+
     # Load agent configurations
     config_file = Path(config_path)
     if config_file.exists():
+        logger.info(f"📖 Loading agent configs from {config_file}")
         agent_registry.load_from_config(str(config_file))
+        logger.info(f"📋 Loaded {len(agent_registry.agent_configs)} agent configurations")
 
         # Create and register agent instances
+        created_count = 0
         for config_name, config in agent_registry.agent_configs.items():
             if not config.enabled:
+                logger.info(f"⏭️  Skipping disabled agent: {config_name}")
                 continue
+
+            logger.info(f"🔨 Creating agent: {config_name} ({config.display_name})")
 
             # Create agent using factory
             agent = AgentFactory.create_agent(config)
 
             if agent:
                 agent_registry.register_agent(agent)
+                logger.info(f"✅ Registered agent: {config_name}")
+                created_count += 1
             else:
-                print(f"Warning: Could not create agent '{config_name}'")
+                logger.warning(f"⚠️  Could not create agent '{config_name}'")
+
+        logger.info(f"✅ Successfully created {created_count} agents")
+    else:
+        logger.warning(f"⚠️  Config file not found: {config_file}")
 
     # Create orchestrator
+    logger.info(f"🎭 Creating orchestrator")
     orchestrator = AgentOrchestrator(
         agent_registry=agent_registry,
         llm_service=llm_service,
         context_manager=context_manager
     )
+
+    logger.info(f"✅ Agent system initialization complete")
+    logger.info(f"📊 Total agents: {agent_registry.get_agent_count()}, Enabled: {agent_registry.get_enabled_count()}")
 
     return agent_registry, orchestrator, context_manager
 

@@ -2,8 +2,35 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 import uuid
 import time
+import json
+from datetime import datetime, date
+import pandas as pd
+import numpy as np
 
 from app.core.database import get_db
+
+
+def make_json_serializable(obj):
+    """Convert objects to JSON-serializable format."""
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    if isinstance(obj, (pd.Timestamp, datetime)):
+        return obj.isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if pd.isna(obj):
+        return None
+    return obj
+
+
 from app.models.dataset import Dataset, DatasetGroup
 from app.models.query import Query, QueryStatus
 from app.schemas.query import NLQueryRequest, SQLQueryRequest, QueryResponse
@@ -91,7 +118,7 @@ async def execute_nl_query(
             result_rows=len(df),
             result_path=result_path,
             status=QueryStatus.SUCCESS,
-            query_metadata=result
+            query_metadata=make_json_serializable(result)
         )
         db.add(query)
         db.commit()
@@ -107,6 +134,9 @@ async def execute_nl_query(
         }
 
     except Exception as e:
+        # Rollback any failed transaction
+        db.rollback()
+
         # Save failed query
         error_sql = result.get('sql', '') if 'result' in locals() else ''
         query = Query(
@@ -212,6 +242,9 @@ async def execute_sql_query(
         }
 
     except Exception as e:
+        # Rollback any failed transaction
+        db.rollback()
+
         # Save failed query
         query = Query(
             id=query_id,

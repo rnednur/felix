@@ -7,6 +7,7 @@ from app.schemas.agent import AgentConfig, AgentRequest, AgentResponse, AgentCon
 from app.services.duckdb_service import DuckDBService
 from app.services.storage_service import StorageService
 import json
+import numpy as np
 
 
 class StatisticalAgent(BaseAgent):
@@ -21,6 +22,20 @@ class StatisticalAgent(BaseAgent):
         super().__init__(config)
         self.duckdb_service = DuckDBService()
         self.storage_service = StorageService()
+
+    def _convert_numpy_types(self, obj):
+        """Convert numpy types to Python native types for JSON serialization"""
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_types(item) for item in obj]
+        return obj
 
     def can_handle(self, request: AgentRequest) -> float:
         """
@@ -95,13 +110,14 @@ class StatisticalAgent(BaseAgent):
                 # Default to descriptive stats
                 results = self._descriptive_statistics(table_name, schema_info, dataset.id)
 
-            response_data = {
+            # Convert numpy types to native Python types for JSON serialization
+            response_data = self._convert_numpy_types({
                 'summary': results.get('summary', 'Statistical analysis complete'),
                 'analysis_type': analysis_type,
                 'results': results.get('results', {}),
                 'insights': results.get('insights', []),
                 'type': 'statistical_analysis'
-            }
+            })
 
             response = AgentResponse(
                 agent_name=self.config.name,
