@@ -1,125 +1,446 @@
 /**
- * Design System Tokens
- * Sophisticated slate/emerald palette with semantic naming
+ * Design System Tokens v2.0
+ * A refined, professional design system with sophisticated color palette,
+ * layered surfaces, and elegant interactions.
+ *
+ * Color Philosophy:
+ * - Indigo: Primary actions, brand identity (professional, trustworthy)
+ * - Emerald: Success states, positive actions
+ * - Amber: Warnings, attention
+ * - Rose: Errors, destructive actions
+ * - Slate: Neutral foundation
  */
 
 @layer base {
   :root {
-    /* Color Palette - Slate Base */
-    --color-slate-50: 248 250 252;   /* Lightest */
-    --color-slate-100: 241 245 249;
-    --color-slate-200: 226 232 240;
-    --color-slate-300: 203 213 225;
-    --color-slate-400: 148 163 184;
-    --color-slate-500: 100 116 139;  /* Mid tone */
-    --color-slate-600: 71 85 105;
-    --color-slate-700: 51 65 85;
-    --color-slate-800: 30 41 59;
-    --color-slate-900: 15 23 42;     /* Darkest */
-    --color-slate-950: 2 6 23;
+    /* ============================================
+       COLOR PALETTE - Raw Values (HSL)
+       ============================================ */
 
-    /* Color Palette - Emerald Accent */
-    --color-emerald-50: 236 253 245;
-    --color-emerald-100: 209 250 229;
-    --color-emerald-200: 167 243 208;
-    --color-emerald-300: 110 231 183;
-    --color-emerald-400: 52 211 153;
-    --color-emerald-500: 16 185 129;  /* Primary */
-    --color-emerald-600: 5 150 105;
-    --color-emerald-700: 4 120 87;
-    --color-emerald-800: 6 95 70;
-    --color-emerald-900: 6 78 59;
-    --color-emerald-950: 2 44 34;
+    /* Slate - Neutral Foundation */
+    --color-slate-25: 210 40% 98%;
+    --color-slate-50: 210 40% 96%;
+    --color-slate-100: 214 32% 91%;
+    --color-slate-200: 213 27% 84%;
+    --color-slate-300: 215 20% 65%;
+    --color-slate-400: 215 16% 47%;
+    --color-slate-500: 215 19% 35%;
+    --color-slate-600: 215 25% 27%;
+    --color-slate-700: 217 33% 17%;
+    --color-slate-800: 219 37% 12%;
+    --color-slate-900: 222 47% 8%;
+    --color-slate-950: 229 53% 5%;
 
-    /* Semantic Colors - Light Mode */
-    --background: var(--color-slate-50);
+    /* Indigo - Primary Brand */
+    --color-indigo-50: 226 100% 97%;
+    --color-indigo-100: 226 100% 94%;
+    --color-indigo-200: 228 96% 89%;
+    --color-indigo-300: 230 94% 82%;
+    --color-indigo-400: 234 89% 74%;
+    --color-indigo-500: 239 84% 67%;
+    --color-indigo-600: 243 75% 59%;
+    --color-indigo-700: 245 58% 51%;
+    --color-indigo-800: 244 55% 41%;
+    --color-indigo-900: 242 47% 34%;
+    --color-indigo-950: 244 47% 20%;
+
+    /* Emerald - Success & Positive */
+    --color-emerald-50: 152 81% 96%;
+    --color-emerald-100: 149 80% 90%;
+    --color-emerald-200: 152 76% 80%;
+    --color-emerald-300: 156 72% 67%;
+    --color-emerald-400: 158 64% 52%;
+    --color-emerald-500: 160 84% 39%;
+    --color-emerald-600: 161 94% 30%;
+    --color-emerald-700: 163 94% 24%;
+    --color-emerald-800: 163 88% 20%;
+    --color-emerald-900: 164 86% 16%;
+    --color-emerald-950: 166 91% 9%;
+
+    /* Amber - Warning & Attention */
+    --color-amber-50: 48 100% 96%;
+    --color-amber-100: 48 96% 89%;
+    --color-amber-200: 48 97% 77%;
+    --color-amber-300: 46 97% 65%;
+    --color-amber-400: 43 96% 56%;
+    --color-amber-500: 38 92% 50%;
+    --color-amber-600: 32 95% 44%;
+    --color-amber-700: 26 90% 37%;
+    --color-amber-800: 23 83% 31%;
+    --color-amber-900: 22 78% 26%;
+    --color-amber-950: 21 92% 14%;
+
+    /* Rose - Error & Destructive */
+    --color-rose-50: 356 100% 97%;
+    --color-rose-100: 356 100% 95%;
+    --color-rose-200: 353 96% 90%;
+    --color-rose-300: 353 96% 82%;
+    --color-rose-400: 351 95% 71%;
+    --color-rose-500: 350 89% 60%;
+    --color-rose-600: 347 77% 50%;
+    --color-rose-700: 345 83% 41%;
+    --color-rose-800: 343 80% 35%;
+    --color-rose-900: 342 75% 30%;
+    --color-rose-950: 343 88% 16%;
+
+    /* Violet - Accent & Highlight */
+    --color-violet-50: 270 100% 98%;
+    --color-violet-100: 269 100% 95%;
+    --color-violet-200: 269 100% 92%;
+    --color-violet-300: 269 97% 85%;
+    --color-violet-400: 270 95% 75%;
+    --color-violet-500: 271 91% 65%;
+    --color-violet-600: 271 81% 56%;
+    --color-violet-700: 272 72% 47%;
+    --color-violet-800: 273 67% 39%;
+    --color-violet-900: 274 66% 32%;
+    --color-violet-950: 274 87% 21%;
+
+    /* ============================================
+       SEMANTIC COLORS - Light Mode
+       ============================================ */
+
+    /* Background Surfaces (layered for depth) */
+    --background: var(--color-slate-25);
+    --background-subtle: var(--color-slate-50);
+    --background-muted: var(--color-slate-100);
     --foreground: var(--color-slate-900);
+    --foreground-muted: var(--color-slate-500);
 
+    /* Card & Container Surfaces */
     --card: 0 0% 100%;
     --card-foreground: var(--color-slate-900);
+    --card-hover: var(--color-slate-50);
 
-    --primary: var(--color-emerald-600);
+    /* Popover & Elevated Surfaces */
+    --popover: 0 0% 100%;
+    --popover-foreground: var(--color-slate-900);
+
+    /* Primary - Main Actions */
+    --primary: var(--color-indigo-600);
+    --primary-hover: var(--color-indigo-700);
+    --primary-active: var(--color-indigo-800);
     --primary-foreground: 0 0% 100%;
+    --primary-muted: var(--color-indigo-50);
 
+    /* Secondary - Supporting Actions */
     --secondary: var(--color-slate-100);
+    --secondary-hover: var(--color-slate-200);
+    --secondary-active: var(--color-slate-300);
     --secondary-foreground: var(--color-slate-900);
 
+    /* Muted - Subtle Elements */
     --muted: var(--color-slate-100);
     --muted-foreground: var(--color-slate-500);
 
-    --accent: var(--color-emerald-50);
-    --accent-foreground: var(--color-emerald-900);
+    /* Accent - Highlights & Emphasis */
+    --accent: var(--color-indigo-50);
+    --accent-hover: var(--color-indigo-100);
+    --accent-foreground: var(--color-indigo-900);
 
-    --destructive: 0 84% 60%;
+    /* Semantic States */
+    --success: var(--color-emerald-600);
+    --success-hover: var(--color-emerald-700);
+    --success-muted: var(--color-emerald-50);
+    --success-foreground: 0 0% 100%;
+
+    --warning: var(--color-amber-500);
+    --warning-hover: var(--color-amber-600);
+    --warning-muted: var(--color-amber-50);
+    --warning-foreground: var(--color-amber-950);
+
+    --destructive: var(--color-rose-600);
+    --destructive-hover: var(--color-rose-700);
+    --destructive-muted: var(--color-rose-50);
     --destructive-foreground: 0 0% 100%;
 
+    --info: var(--color-indigo-500);
+    --info-hover: var(--color-indigo-600);
+    --info-muted: var(--color-indigo-50);
+    --info-foreground: 0 0% 100%;
+
+    /* Borders & Dividers */
     --border: var(--color-slate-200);
+    --border-muted: var(--color-slate-100);
+    --border-strong: var(--color-slate-300);
     --input: var(--color-slate-200);
-    --ring: var(--color-emerald-500);
+    --input-focus: var(--color-indigo-500);
 
-    --success: var(--color-emerald-500);
-    --warning: 38 92% 50%;
-    --error: 0 84% 60%;
-    --info: 217 91% 60%;
+    /* Focus Ring */
+    --ring: var(--color-indigo-500);
+    --ring-offset: 0 0% 100%;
 
-    /* Radius */
-    --radius-sm: 0.375rem;   /* 6px */
-    --radius-md: 0.5rem;     /* 8px */
-    --radius-lg: 0.75rem;    /* 12px */
-    --radius-xl: 1rem;       /* 16px */
+    /* ============================================
+       SHADOWS & ELEVATION
+       ============================================ */
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    /* Subtle shadows for light mode */
+    --shadow-color: 215 25% 27%;
 
-    /* Transitions */
-    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --shadow-xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.03);
+    --shadow-sm: 0 1px 3px 0 hsl(var(--shadow-color) / 0.04),
+                 0 1px 2px -1px hsl(var(--shadow-color) / 0.03);
+    --shadow-md: 0 4px 6px -1px hsl(var(--shadow-color) / 0.05),
+                 0 2px 4px -2px hsl(var(--shadow-color) / 0.03);
+    --shadow-lg: 0 10px 15px -3px hsl(var(--shadow-color) / 0.06),
+                 0 4px 6px -4px hsl(var(--shadow-color) / 0.03);
+    --shadow-xl: 0 20px 25px -5px hsl(var(--shadow-color) / 0.08),
+                 0 8px 10px -6px hsl(var(--shadow-color) / 0.03);
+    --shadow-2xl: 0 25px 50px -12px hsl(var(--shadow-color) / 0.15);
 
-    /* Typography */
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* Elevation layers (card depth) */
+    --elevation-1: var(--shadow-sm);
+    --elevation-2: var(--shadow-md);
+    --elevation-3: var(--shadow-lg);
+    --elevation-4: var(--shadow-xl);
+
+    /* Colored glows for emphasis */
+    --glow-primary: 0 0 20px hsl(var(--color-indigo-500) / 0.15);
+    --glow-success: 0 0 20px hsl(var(--color-emerald-500) / 0.15);
+    --glow-warning: 0 0 20px hsl(var(--color-amber-500) / 0.15);
+    --glow-error: 0 0 20px hsl(var(--color-rose-500) / 0.15);
+
+    /* ============================================
+       BORDER RADIUS
+       ============================================ */
+    --radius-none: 0;
+    --radius-sm: 0.375rem;    /* 6px - buttons, inputs */
+    --radius-md: 0.5rem;      /* 8px - cards */
+    --radius-lg: 0.75rem;     /* 12px - modals */
+    --radius-xl: 1rem;        /* 16px - large containers */
+    --radius-2xl: 1.5rem;     /* 24px - hero sections */
+    --radius-full: 9999px;    /* Pills, avatars */
+
+    /* ============================================
+       SPACING SCALE
+       ============================================ */
+    --spacing-0: 0;
+    --spacing-px: 1px;
+    --spacing-0-5: 0.125rem;  /* 2px */
+    --spacing-1: 0.25rem;     /* 4px */
+    --spacing-1-5: 0.375rem;  /* 6px */
+    --spacing-2: 0.5rem;      /* 8px */
+    --spacing-2-5: 0.625rem;  /* 10px */
+    --spacing-3: 0.75rem;     /* 12px */
+    --spacing-3-5: 0.875rem;  /* 14px */
+    --spacing-4: 1rem;        /* 16px */
+    --spacing-5: 1.25rem;     /* 20px */
+    --spacing-6: 1.5rem;      /* 24px */
+    --spacing-7: 1.75rem;     /* 28px */
+    --spacing-8: 2rem;        /* 32px */
+    --spacing-9: 2.25rem;     /* 36px */
+    --spacing-10: 2.5rem;     /* 40px */
+    --spacing-12: 3rem;       /* 48px */
+    --spacing-14: 3.5rem;     /* 56px */
+    --spacing-16: 4rem;       /* 64px */
+    --spacing-20: 5rem;       /* 80px */
+    --spacing-24: 6rem;       /* 96px */
+
+    /* ============================================
+       TYPOGRAPHY
+       ============================================ */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --font-display: 'Space Grotesk', 'Inter', sans-serif;
-    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
 
-    /* Spacing Scale */
-    --spacing-xs: 0.25rem;   /* 4px */
-    --spacing-sm: 0.5rem;    /* 8px */
-    --spacing-md: 1rem;      /* 16px */
-    --spacing-lg: 1.5rem;    /* 24px */
-    --spacing-xl: 2rem;      /* 32px */
-    --spacing-2xl: 3rem;     /* 48px */
+    /* Font Sizes */
+    --text-xs: 0.75rem;       /* 12px */
+    --text-sm: 0.875rem;      /* 14px */
+    --text-base: 1rem;        /* 16px */
+    --text-lg: 1.125rem;      /* 18px */
+    --text-xl: 1.25rem;       /* 20px */
+    --text-2xl: 1.5rem;       /* 24px */
+    --text-3xl: 1.875rem;     /* 30px */
+    --text-4xl: 2.25rem;      /* 36px */
+    --text-5xl: 3rem;         /* 48px */
+    --text-6xl: 3.75rem;      /* 60px */
+
+    /* Line Heights */
+    --leading-none: 1;
+    --leading-tight: 1.25;
+    --leading-snug: 1.375;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.625;
+    --leading-loose: 2;
+
+    /* Letter Spacing */
+    --tracking-tighter: -0.05em;
+    --tracking-tight: -0.025em;
+    --tracking-normal: 0em;
+    --tracking-wide: 0.025em;
+    --tracking-wider: 0.05em;
+    --tracking-widest: 0.1em;
+
+    /* ============================================
+       TRANSITIONS & ANIMATIONS
+       ============================================ */
+
+    /* Durations */
+    --duration-75: 75ms;
+    --duration-100: 100ms;
+    --duration-150: 150ms;
+    --duration-200: 200ms;
+    --duration-300: 300ms;
+    --duration-500: 500ms;
+    --duration-700: 700ms;
+    --duration-1000: 1000ms;
+
+    /* Easing Functions */
+    --ease-linear: linear;
+    --ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+    /* Precomposed Transitions */
+    --transition-colors: color var(--duration-150) var(--ease-in-out),
+                         background-color var(--duration-150) var(--ease-in-out),
+                         border-color var(--duration-150) var(--ease-in-out);
+    --transition-opacity: opacity var(--duration-150) var(--ease-in-out);
+    --transition-shadow: box-shadow var(--duration-200) var(--ease-out);
+    --transition-transform: transform var(--duration-200) var(--ease-out);
+    --transition-all: all var(--duration-200) var(--ease-out);
+
+    /* ============================================
+       Z-INDEX SCALE
+       ============================================ */
+    --z-base: 0;
+    --z-dropdown: 10;
+    --z-sticky: 20;
+    --z-fixed: 30;
+    --z-modal-backdrop: 40;
+    --z-modal: 50;
+    --z-popover: 60;
+    --z-tooltip: 70;
+    --z-toast: 80;
+
+    /* ============================================
+       GRADIENTS
+       ============================================ */
+    --gradient-primary: linear-gradient(135deg,
+      hsl(var(--color-indigo-500)) 0%,
+      hsl(var(--color-violet-500)) 100%);
+    --gradient-primary-subtle: linear-gradient(135deg,
+      hsl(var(--color-indigo-50)) 0%,
+      hsl(var(--color-violet-50)) 100%);
+    --gradient-success: linear-gradient(135deg,
+      hsl(var(--color-emerald-400)) 0%,
+      hsl(var(--color-emerald-600)) 100%);
+    --gradient-surface: linear-gradient(180deg,
+      hsl(0 0% 100%) 0%,
+      hsl(var(--color-slate-50)) 100%);
+    --gradient-shimmer: linear-gradient(90deg,
+      transparent 0%,
+      hsl(0 0% 100% / 0.4) 50%,
+      transparent 100%);
   }
 
+  /* ============================================
+     DARK MODE
+     ============================================ */
   .dark {
-    /* Dark mode palette */
+    /* Background Surfaces */
     --background: var(--color-slate-950);
+    --background-subtle: var(--color-slate-900);
+    --background-muted: var(--color-slate-800);
     --foreground: var(--color-slate-50);
+    --foreground-muted: var(--color-slate-400);
 
+    /* Card & Container Surfaces */
     --card: var(--color-slate-900);
     --card-foreground: var(--color-slate-50);
+    --card-hover: var(--color-slate-800);
 
-    --primary: var(--color-emerald-500);
-    --primary-foreground: var(--color-slate-950);
+    /* Popover & Elevated Surfaces */
+    --popover: var(--color-slate-900);
+    --popover-foreground: var(--color-slate-50);
 
+    /* Primary */
+    --primary: var(--color-indigo-500);
+    --primary-hover: var(--color-indigo-400);
+    --primary-active: var(--color-indigo-300);
+    --primary-foreground: 0 0% 100%;
+    --primary-muted: var(--color-indigo-950);
+
+    /* Secondary */
     --secondary: var(--color-slate-800);
+    --secondary-hover: var(--color-slate-700);
+    --secondary-active: var(--color-slate-600);
     --secondary-foreground: var(--color-slate-50);
 
+    /* Muted */
     --muted: var(--color-slate-800);
     --muted-foreground: var(--color-slate-400);
 
-    --accent: var(--color-emerald-950);
-    --accent-foreground: var(--color-emerald-50);
+    /* Accent */
+    --accent: var(--color-indigo-950);
+    --accent-hover: var(--color-indigo-900);
+    --accent-foreground: var(--color-indigo-100);
 
+    /* Semantic States */
+    --success: var(--color-emerald-500);
+    --success-hover: var(--color-emerald-400);
+    --success-muted: var(--color-emerald-950);
+
+    --warning: var(--color-amber-500);
+    --warning-hover: var(--color-amber-400);
+    --warning-muted: var(--color-amber-950);
+
+    --destructive: var(--color-rose-500);
+    --destructive-hover: var(--color-rose-400);
+    --destructive-muted: var(--color-rose-950);
+
+    --info: var(--color-indigo-400);
+    --info-hover: var(--color-indigo-300);
+    --info-muted: var(--color-indigo-950);
+
+    /* Borders */
     --border: var(--color-slate-800);
+    --border-muted: var(--color-slate-900);
+    --border-strong: var(--color-slate-700);
     --input: var(--color-slate-800);
-    --ring: var(--color-emerald-400);
+    --input-focus: var(--color-indigo-400);
+
+    /* Focus Ring */
+    --ring: var(--color-indigo-400);
+    --ring-offset: var(--color-slate-950);
+
+    /* Adjusted shadows for dark mode */
+    --shadow-color: 0 0% 0%;
+
+    --shadow-xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.2);
+    --shadow-sm: 0 1px 3px 0 hsl(var(--shadow-color) / 0.3),
+                 0 1px 2px -1px hsl(var(--shadow-color) / 0.2);
+    --shadow-md: 0 4px 6px -1px hsl(var(--shadow-color) / 0.35),
+                 0 2px 4px -2px hsl(var(--shadow-color) / 0.2);
+    --shadow-lg: 0 10px 15px -3px hsl(var(--shadow-color) / 0.4),
+                 0 4px 6px -4px hsl(var(--shadow-color) / 0.25);
+    --shadow-xl: 0 20px 25px -5px hsl(var(--shadow-color) / 0.45),
+                 0 8px 10px -6px hsl(var(--shadow-color) / 0.25);
+    --shadow-2xl: 0 25px 50px -12px hsl(var(--shadow-color) / 0.6);
+
+    /* Adjusted glows */
+    --glow-primary: 0 0 30px hsl(var(--color-indigo-500) / 0.25);
+    --glow-success: 0 0 30px hsl(var(--color-emerald-500) / 0.25);
+    --glow-warning: 0 0 30px hsl(var(--color-amber-500) / 0.25);
+    --glow-error: 0 0 30px hsl(var(--color-rose-500) / 0.25);
+
+    /* Dark mode gradients */
+    --gradient-surface: linear-gradient(180deg,
+      hsl(var(--color-slate-900)) 0%,
+      hsl(var(--color-slate-950)) 100%);
+    --gradient-shimmer: linear-gradient(90deg,
+      transparent 0%,
+      hsl(0 0% 100% / 0.05) 50%,
+      transparent 100%);
   }
 }
 
+/* ============================================
+   BASE STYLES
+   ============================================ */
 @layer base {
   *,
   *::before,
@@ -127,41 +448,262 @@
     border-color: hsl(var(--border));
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-feature-settings: 'rlig' 1, 'calt' 1;
     font-family: var(--font-sans);
+    font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
+    line-height: var(--leading-normal);
   }
 
-  /* Typography Styles */
+  /* Typography Hierarchy */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
     font-weight: 600;
-    letter-spacing: -0.025em;
+    letter-spacing: var(--tracking-tight);
+    color: hsl(var(--foreground));
+    line-height: var(--leading-tight);
   }
 
-  /* Smooth Scrolling */
-  html {
-    scroll-behavior: smooth;
+  h1 { font-size: var(--text-4xl); }
+  h2 { font-size: var(--text-3xl); }
+  h3 { font-size: var(--text-2xl); }
+  h4 { font-size: var(--text-xl); }
+  h5 { font-size: var(--text-lg); }
+  h6 { font-size: var(--text-base); }
+
+  /* Paragraph styling */
+  p {
+    color: hsl(var(--foreground-muted));
+    line-height: var(--leading-relaxed);
+  }
+
+  /* Link styling */
+  a {
+    color: hsl(var(--primary));
+    text-decoration: none;
+    transition: var(--transition-colors);
+  }
+
+  a:hover {
+    color: hsl(var(--primary-hover));
+  }
+
+  /* Selection styling */
+  ::selection {
+    background-color: hsl(var(--primary) / 0.2);
+    color: hsl(var(--foreground));
+  }
+
+  /* Focus visible outline */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
 
   ::-webkit-scrollbar-track {
-    background: hsl(var(--muted));
+    background: hsl(var(--background-subtle));
+    border-radius: var(--radius-full);
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 4px;
+    background: hsl(var(--muted-foreground) / 0.25);
+    border-radius: var(--radius-full);
+    border: 2px solid hsl(var(--background-subtle));
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.5);
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.25) hsl(var(--background-subtle));
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+@layer utilities {
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-gradient {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Surface utilities */
+  .surface-card {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-1);
+  }
+
+  .surface-elevated {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border-muted));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-2);
+  }
+
+  .surface-floating {
+    background-color: hsl(var(--popover));
+    border: 1px solid hsl(var(--border-muted));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-3);
+  }
+
+  /* Glow utilities */
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+
+  .glow-success {
+    box-shadow: var(--glow-success);
+  }
+
+  /* Interactive states */
+  .interactive {
+    transition: var(--transition-all);
+  }
+
+  .interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-2);
+  }
+
+  .interactive:active {
+    transform: translateY(0);
+    box-shadow: var(--elevation-1);
+  }
+
+  /* Press effect for buttons */
+  .press-effect {
+    transition: transform var(--duration-100) var(--ease-out);
+  }
+
+  .press-effect:active {
+    transform: scale(0.98);
+  }
+
+  /* Skeleton loading animation */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.1) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Fade in animation */
+  .animate-fade-in {
+    animation: fade-in var(--duration-300) var(--ease-out-expo);
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Slide in animations */
+  .animate-slide-in-right {
+    animation: slide-in-right var(--duration-300) var(--ease-out-expo);
+  }
+
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-up {
+    animation: slide-in-up var(--duration-300) var(--ease-out-expo);
+  }
+
+  @keyframes slide-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Scale in animation */
+  .animate-scale-in {
+    animation: scale-in var(--duration-200) var(--ease-out-back);
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Pulse animation for loading states */
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s var(--ease-in-out) infinite;
+  }
+
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* Spin animation */
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 }
