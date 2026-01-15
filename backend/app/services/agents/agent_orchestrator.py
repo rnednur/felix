@@ -55,8 +55,15 @@ class AgentOrchestrator:
         Returns:
             AgentResponse or async iterator of StreamChunks
         """
+        import logging
+        logger = logging.getLogger("orchestrator")
+
+        logger.info(f"🎯 ORCHESTRATOR.process_query: query='{query}', dataset_id={dataset_id}, session_id={session_id}")
+
         # Get or create session context
+        logger.info(f"📦 Getting context for session {session_id}...")
         context = await self.context_manager.get_context(session_id, dataset_id, user_id)
+        logger.info(f"✅ Got context with {len(context.conversation_history)} history messages")
 
         # Add user message to history
         await self.context_manager.add_message(session_id, Message(
@@ -64,14 +71,21 @@ class AgentOrchestrator:
             content=query,
             timestamp=datetime.utcnow()
         ))
+        logger.info(f"💬 Added user message to history")
 
         # Detect intent and select agents
+        logger.info(f"🧠 Creating execution plan...")
         plan = await self.create_execution_plan(query, context)
+        logger.info(f"📋 Plan created: mode={plan.execution_mode}, agents={plan.agents}, reasoning='{plan.reasoning}'")
 
         if stream:
+            logger.info(f"📡 Executing plan with streaming")
             return self.execute_plan_streaming(plan, context)
         else:
-            return await self.execute_plan(plan, context)
+            logger.info(f"⚡ Executing plan without streaming")
+            result = await self.execute_plan(plan, context)
+            logger.info(f"✅ Plan execution complete: success={result.success}, agent={result.agent_name}")
+            return result
 
     async def create_execution_plan(self, query: str, context: AgentContext) -> ExecutionPlan:
         """
@@ -88,12 +102,21 @@ class AgentOrchestrator:
         Returns:
             ExecutionPlan
         """
+        import logging
+        logger = logging.getLogger("orchestrator.plan")
+
         # Fast path: Try keyword-based agent selection
+        logger.info(f"🔍 Finding agents for task: '{query}'")
         candidates = self.agent_registry.find_agents_for_task(query, context.dataset_id)
+        logger.info(f"📊 Found {len(candidates)} candidate agents")
+
+        for agent, confidence in candidates[:3]:
+            logger.info(f"  - {agent.config.name} ({agent.config.display_name}): {confidence:.2f}")
 
         if candidates and candidates[0][1] > 0.7:
             # High confidence match - use fast path
             agent, confidence = candidates[0]
+            logger.info(f"✅ Fast path: Using {agent.config.name} with confidence {confidence:.2f}")
             return ExecutionPlan(
                 query=query,
                 agents=[agent.config.name],
@@ -104,6 +127,7 @@ class AgentOrchestrator:
             )
 
         # Slow path: Use LLM for plan generation
+        logger.info(f"🤔 Low confidence, using LLM for plan generation")
         return await self.create_llm_execution_plan(query, context)
 
     async def create_llm_execution_plan(self, query: str, context: AgentContext) -> ExecutionPlan:
@@ -117,6 +141,9 @@ class AgentOrchestrator:
         Returns:
             ExecutionPlan
         """
+        import logging
+        logger = logging.getLogger("orchestrator.llm_plan")
+
         # Get available agents
         agents_info = {
             agent.config.name: {
@@ -162,10 +189,12 @@ Rules:
 4. Select the minimum number of agents needed
 5. Consider conversation context for better agent selection
 6. For simple queries, prefer single agent execution
+7. For queries asking to "analyze" or "summarize" data, use query_agent to retrieve data first
 
 Execution Plan (JSON only):"""
 
         try:
+            logger.info("🤖 Calling LLM for plan generation...")
             # Call LLM
             response = await self.llm_service.generate(
                 prompt,
@@ -173,17 +202,31 @@ Execution Plan (JSON only):"""
                 temperature=0.2,
                 max_tokens=500
             )
+            logger.info(f"✅ LLM response received: {response[:200]}...")
 
             # Parse response
             plan_data = json.loads(response)
-            return ExecutionPlan.from_json(plan_data)
+            logger.info(f"📋 Parsed plan: agents={plan_data.get('agents')}, mode={plan_data.get('execution_mode')}")
+
+            plan = ExecutionPlan.from_json(plan_data)
+
+            # If LLM returns empty agents list, try fallback
+            if not plan.agents:
+                logger.warning("⚠️  LLM returned empty agents list, trying fallback")
+                raise ValueError("LLM returned empty agents list")
+
+            return plan
 
         except Exception as e:
+            logger.error(f"❌ LLM plan generation failed: {str(e)}")
+
             # Fallback: Use best keyword match
             candidates = self.agent_registry.find_agents_for_task(query, context.dataset_id)
+            logger.info(f"🔄 Fallback to keyword matching: found {len(candidates)} candidates")
 
             if candidates:
-                agent, _ = candidates[0]
+                agent, confidence = candidates[0]
+                logger.info(f"✅ Using fallback agent: {agent.config.name} (confidence: {confidence:.2f})")
                 return ExecutionPlan(
                     query=query,
                     agents=[agent.config.name],
@@ -193,14 +236,15 @@ Execution Plan (JSON only):"""
                     reasoning=f"Fallback to keyword matching (LLM failed: {str(e)})"
                 )
             else:
-                # No agents found - return empty plan
+                # Last resort: Use query_agent as default for any data analysis task
+                logger.warning("⚠️  No keyword matches found, defaulting to query_agent")
                 return ExecutionPlan(
                     query=query,
-                    agents=[],
+                    agents=['query_agent'],
                     execution_mode='single',
                     dependencies={},
-                    estimated_duration=0,
-                    reasoning="No suitable agents found"
+                    estimated_duration=30,
+                    reasoning="Default fallback to query_agent for data analysis"
                 )
 
     async def execute_plan(self, plan: ExecutionPlan, context: AgentContext) -> AgentResponse:
@@ -231,10 +275,17 @@ Execution Plan (JSON only):"""
 
     async def execute_single_agent(self, plan: ExecutionPlan, context: AgentContext) -> AgentResponse:
         """Execute single agent"""
+        import logging
+        logger = logging.getLogger("orchestrator.execute")
+
         agent_name = plan.agents[0]
+        logger.info(f"🎯 Executing single agent: {agent_name}")
+
         agent = self.agent_registry.get_agent(agent_name)
 
         if not agent:
+            logger.error(f"❌ Agent not found in registry: {agent_name}")
+            logger.info(f"Available agents: {list(self.agent_registry.agents.keys())}")
             return AgentResponse(
                 agent_name="orchestrator",
                 success=False,
@@ -242,14 +293,20 @@ Execution Plan (JSON only):"""
                 error=f"Agent '{agent_name}' not found"
             )
 
+        logger.info(f"✅ Found agent: {agent.config.display_name}")
+
         request = AgentRequest(
             query=plan.query,
             dataset_id=context.dataset_id,
             task_type="analysis"
         )
 
+        logger.info(f"📦 Request: query='{request.query}', dataset_id={request.dataset_id}")
+
         try:
+            logger.info(f"🚀 Calling agent.process()...")
             response = await agent.process(request, context)
+            logger.info(f"✅ Agent completed: success={response.success}, has_code={response.code is not None}")
 
             # Save to context
             await self.context_manager.update_intermediate_results(
@@ -257,10 +314,12 @@ Execution Plan (JSON only):"""
                 agent_name,
                 response.data
             )
+            logger.info(f"💾 Saved results to context")
 
             return response
 
         except Exception as e:
+            logger.error(f"❌ Agent execution failed: {str(e)}", exc_info=True)
             return AgentResponse(
                 agent_name=agent_name,
                 success=False,

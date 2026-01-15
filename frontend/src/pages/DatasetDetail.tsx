@@ -732,6 +732,41 @@ export default function DatasetDetail() {
           responseText += `\n\n**SQL Query:**\n\`\`\`sql\n${result.response.sql}\n\`\`\``
         }
 
+        // Add data table summary if present
+        if (result.response.result_preview && result.response.result_preview.length > 0) {
+          const rows = result.response.result_preview
+          const rowCount = result.response.row_count || rows.length
+
+          responseText += `\n\n**Query Results** (${rowCount} rows):\n\n`
+
+          // Create markdown table from first 10 rows
+          const displayRows = rows.slice(0, 10)
+          if (displayRows.length > 0) {
+            // Get column names
+            const columns = Object.keys(displayRows[0])
+
+            // Create table header
+            responseText += `| ${columns.join(' | ')} |\n`
+            responseText += `| ${columns.map(() => '---').join(' | ')} |\n`
+
+            // Add rows
+            displayRows.forEach(row => {
+              const values = columns.map(col => {
+                const val = row[col]
+                // Format values (handle null, numbers, etc.)
+                if (val === null || val === undefined) return '-'
+                if (typeof val === 'number') return val.toLocaleString()
+                return String(val)
+              })
+              responseText += `| ${values.join(' | ')} |\n`
+            })
+
+            if (rows.length > 10) {
+              responseText += `\n_Showing 10 of ${rowCount} rows_`
+            }
+          }
+        }
+
         // Add observations if present (data scouting)
         if (result.response.observations && result.response.observations.length > 0) {
           responseText += `\n\n**Key Observations:**\n` +
@@ -741,17 +776,30 @@ export default function DatasetDetail() {
         // Add metadata
         responseText += `\n\n_Execution time: ${result.metadata.execution_time_ms}ms_`
 
+        // Prepare execution result for display
+        let executionResult: ExecutionResult | undefined = undefined
+        if (result.response.result_preview && result.response.result_preview.length > 0) {
+          executionResult = {
+            data: result.response.result_preview,
+            columns: Object.keys(result.response.result_preview[0] || {}),
+            row_count: result.response.row_count || result.response.result_preview.length,
+            execution_time_ms: result.metadata.execution_time_ms || 0
+          }
+        }
+
         // Replace loading message with result
         setMessages((prev) => {
           const newMessages = [...prev]
           newMessages[newMessages.length - 1] = {
             role: 'assistant',
-            content: responseText
+            content: responseText,
+            code: result.response.sql,
+            executionResult: executionResult
           }
           return newMessages
         })
 
-        // If there's SQL result data, show it in dashboard
+        // If there's SQL result data, also update query result for dashboard view
         if (result.response.result_preview && result.response.result_preview.length > 0) {
           setQueryResult({
             query_id: result.session_id,
@@ -760,7 +808,8 @@ export default function DatasetDetail() {
             total_rows: result.response.result_preview.length,
             status: 'SUCCESS'
           })
-          setCurrentView('dashboard')
+          // Don't auto-switch to dashboard - let user decide
+          // setCurrentView('dashboard')
         }
       } catch (error: any) {
         setMessages((prev) => {

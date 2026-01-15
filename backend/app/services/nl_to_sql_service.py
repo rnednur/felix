@@ -79,14 +79,21 @@ class NLToSQLService:
                 from app.services.duckdb_service import DuckDBService
                 duckdb_service = DuckDBService()
 
-                # Try executing the query to validate syntax
-                duckdb_service.execute_query(validated_sql, dataset_id=dataset_id)
+                # Try executing the query to validate syntax and get results
+                query_result_df = duckdb_service.execute_query(validated_sql, dataset_id=dataset_id)
+
+                # Replace NaN/Infinity with None for JSON serialization
+                query_result_df = query_result_df.replace([float('nan'), float('inf'), float('-inf')], None)
+
+                # Convert DataFrame to list of dicts for JSON serialization
+                query_result = query_result_df.to_dict('records')
 
                 # If we get here, SQL is valid
                 retry_info = {'attempted': attempt + 1} if attempt > 0 else {}
 
                 return {
                     'sql': validated_sql,
+                    'result': query_result,  # Include actual query results as list of dicts
                     'retrieved_columns': [col['column']['name'] for col in relevant_cols],
                     'confidence': self.estimate_confidence(relevant_cols),
                     **retry_info
@@ -188,14 +195,21 @@ class NLToSQLService:
                     for ds in dataset_schemas
                 ]
 
-                # Try executing the query to validate syntax
-                duckdb_service.execute_query(validated_sql, dataset_configs=dataset_configs)
+                # Try executing the query to validate syntax and get results
+                query_result_df = duckdb_service.execute_query(validated_sql, dataset_configs=dataset_configs)
+
+                # Replace NaN/Infinity with None for JSON serialization
+                query_result_df = query_result_df.replace([float('nan'), float('inf'), float('-inf')], None)
+
+                # Convert DataFrame to list of dicts for JSON serialization
+                query_result = query_result_df.to_dict('records')
 
                 # If we get here, SQL is valid
                 retry_info = {'attempted': attempt + 1} if attempt > 0 else {}
 
                 return {
                     'sql': validated_sql,
+                    'result': query_result,  # Include actual query results as list of dicts
                     'retrieved_columns': [col['column']['name'] for col in all_relevant_cols],
                     'confidence': self.estimate_confidence(all_relevant_cols),
                     'datasets_used': [ds['alias'] for ds in dataset_schemas],
