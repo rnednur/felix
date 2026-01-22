@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import {
-  DashboardProgress,
   DashboardOptions,
   DashboardPhase,
   KPIResult,
   ChartPreview,
+  DashboardFilterConfig,
 } from '@/types/dashboard'
 
 interface UseDashboardGeneratorOptions {
@@ -21,6 +21,7 @@ interface UseDashboardGeneratorReturn {
   kpis: KPIResult[]
   charts: ChartPreview[]
   insights: string[]
+  filterConfig: DashboardFilterConfig[]
   workspaceId: string | null
   generate: (datasetId: string, options?: DashboardOptions, prompt?: string) => void
   cancel: () => void
@@ -40,6 +41,7 @@ export function useDashboardGenerator(
   const [kpis, setKpis] = useState<KPIResult[]>([])
   const [charts, setCharts] = useState<ChartPreview[]>([])
   const [insights, setInsights] = useState<string[]>([])
+  const [filterConfig, setFilterConfig] = useState<DashboardFilterConfig[]>([])
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
 
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -66,6 +68,7 @@ export function useDashboardGenerator(
     setKpis([])
     setCharts([])
     setInsights([])
+    setFilterConfig([])
     setWorkspaceId(null)
   }, [])
 
@@ -207,6 +210,13 @@ export function useDashboardGenerator(
           }
           break
 
+        case 'filters':
+          // Handle filter configuration from LLM extraction
+          if (data.filters && Array.isArray(data.filters)) {
+            setFilterConfig(data.filters)
+          }
+          break
+
         case 'complete':
           setPhase('complete')
           setProgress(100)
@@ -222,6 +232,9 @@ export function useDashboardGenerator(
           }
           if (data.insights) {
             setInsights(data.insights)
+          }
+          if (data.filters) {
+            setFilterConfig(data.filters)
           }
 
           // Note: workspace_id comes from the backend after creation
@@ -253,6 +266,7 @@ export function useDashboardGenerator(
     kpis,
     charts,
     insights,
+    filterConfig,
     workspaceId,
     generate,
     cancel,

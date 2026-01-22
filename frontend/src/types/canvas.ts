@@ -21,6 +21,7 @@ export interface ChartContent {
   vegaSpec: any
   title?: string
   sourceQueryId?: string
+  data?: any[]
 }
 
 export interface InsightNoteContent {

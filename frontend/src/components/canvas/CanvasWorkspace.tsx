@@ -1,17 +1,22 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { CanvasItem, CanvasItemType, KPICardContent } from '@/types/canvas'
+import { CanvasItem, KPICardContent } from '@/types/canvas'
 import { QueryResultItem } from './QueryResultItem'
 import { ChartItem } from './ChartItem'
 import { CodeBlockItem } from './CodeBlockItem'
 import { InsightNoteItem } from './InsightNoteItem'
 import { KPICard } from './KPICard'
+import { DashboardGridView } from './DashboardGridView'
 import { ExportDialog } from '@/components/export/ExportDialog'
 import { ThemeExtractor } from '@/components/theming/ThemeExtractor'
-import { Plus, Save, Download, Trash2, X, FolderOpen, LayoutGrid, Palette } from 'lucide-react'
+import { Plus, Save, Download, Trash2, X, FolderOpen, LayoutGrid, Palette, Move, LayoutDashboard, Edit2, Check } from 'lucide-react'
+
+type ViewMode = 'canvas' | 'dashboard'
 
 interface CanvasWorkspaceProps {
   workspaceId: string
   items: CanvasItem[]
+  title?: string
+  onTitleChange?: (title: string) => void
   onItemsChange: (items: CanvasItem[]) => void
   onSave: (name: string, description?: string) => void
   onLoad?: () => void
@@ -123,7 +128,7 @@ function SimpleDraggableItem({
   return (
     <div
       ref={itemRef}
-      className="absolute border-2 border-gray-300 rounded-lg shadow-lg overflow-hidden bg-white"
+      className="absolute rounded-xl overflow-hidden bg-white group/item shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08),0_4px_12px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_16px_-2px_rgba(0,0,0,0.1),0_8px_24px_-4px_rgba(0,0,0,0.08)] transition-shadow duration-200"
       style={{
         left: item.x,
         top: item.y,
@@ -134,41 +139,44 @@ function SimpleDraggableItem({
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Drag handle */}
-      <div className="drag-handle absolute top-0 left-0 right-0 h-10 bg-gradient-to-r from-blue-50 to-gray-50 border-b-2 border-blue-200 cursor-grab active:cursor-grabbing flex items-center justify-between px-4 hover:bg-blue-100 transition-colors">
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col gap-1">
-            <div className="w-4 h-0.5 bg-gray-400 rounded"></div>
-            <div className="w-4 h-0.5 bg-gray-400 rounded"></div>
-            <div className="w-4 h-0.5 bg-gray-400 rounded"></div>
+      {/* Subtle drag handle - appears on hover */}
+      <div className="drag-handle absolute top-0 left-0 right-0 h-8 cursor-grab active:cursor-grabbing flex items-center justify-between px-3 bg-gradient-to-b from-slate-100/80 to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity z-10">
+        <div className="flex items-center gap-1.5">
+          <div className="flex gap-0.5">
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
           </div>
-          <span className="text-xs font-medium text-gray-700">Drag to move</span>
+          <div className="flex gap-0.5">
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+          </div>
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation()
             onDelete(item.id)
           }}
-          className="text-gray-400 hover:text-red-600 hover:bg-red-50 rounded px-2 py-1 transition-colors font-bold text-lg"
+          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
         >
-          ×
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Content */}
-      <div className="mt-10 h-[calc(100%-2.5rem)] overflow-hidden">
+      {/* Content - no offset needed anymore */}
+      <div className="h-full overflow-hidden">
         {renderContent()}
       </div>
 
-      {/* Resize Handle */}
+      {/* Subtle resize handle */}
       <div
-        className="resize-handle absolute bottom-0 right-0 w-6 h-6 cursor-se-resize"
-        style={{
-          background: 'linear-gradient(135deg, transparent 50%, #3b82f6 50%)',
-        }}
+        className="resize-handle absolute bottom-0 right-0 w-5 h-5 cursor-se-resize opacity-0 group-hover/item:opacity-100 transition-opacity"
         title="Drag to resize"
       >
-        <div className="absolute bottom-1 right-1 w-1 h-1 bg-white rounded-full"></div>
+        <svg className="absolute bottom-1 right-1 h-3 w-3 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z" />
+        </svg>
       </div>
     </div>
   )
@@ -177,6 +185,8 @@ function SimpleDraggableItem({
 export function CanvasWorkspace({
   workspaceId,
   items,
+  title,
+  onTitleChange,
   onItemsChange,
   onSave,
   onLoad
@@ -188,6 +198,43 @@ export function CanvasWorkspace({
   const [showThemeExtractor, setShowThemeExtractor] = useState(false)
   const [workspaceName, setWorkspaceName] = useState('')
   const [workspaceDescription, setWorkspaceDescription] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus()
+      titleInputRef.current.select()
+    }
+  }, [isEditingTitle])
+
+  const handleStartEditingTitle = () => {
+    setEditedTitle(title || `${viewMode === 'dashboard' ? 'Dashboard' : 'Canvas'} Workspace`)
+    setIsEditingTitle(true)
+  }
+
+  const handleSaveTitle = () => {
+    if (editedTitle.trim() && onTitleChange) {
+      onTitleChange(editedTitle.trim())
+    }
+    setIsEditingTitle(false)
+  }
+
+  const handleCancelEditingTitle = () => {
+    setIsEditingTitle(false)
+    setEditedTitle('')
+  }
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveTitle()
+    } else if (e.key === 'Escape') {
+      handleCancelEditingTitle()
+    }
+  }
 
   const handlePositionChange = (id: string, x: number, y: number) => {
     const updatedItems = items.map(item =>
@@ -364,18 +411,88 @@ export function CanvasWorkspace({
         </div>
       )}
 
-      <div className="h-full flex flex-col bg-gray-50">
+      <div className="h-full flex flex-col bg-slate-50">
       {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-        <h2 className="text-lg font-semibold text-gray-800">Canvas Workspace</h2>
-        <span className="text-sm text-gray-500">
+      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3">
+        {/* Editable Title */}
+        {isEditingTitle ? (
+          <div className="flex items-center gap-2">
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={editedTitle}
+              onChange={(e) => setEditedTitle(e.target.value)}
+              onKeyDown={handleTitleKeyDown}
+              onBlur={handleSaveTitle}
+              className="text-lg font-semibold text-slate-800 bg-slate-100 border border-slate-300 rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[200px]"
+              placeholder="Enter title..."
+            />
+            <button
+              onClick={handleSaveTitle}
+              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+              title="Save title"
+            >
+              <Check className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleCancelEditingTitle}
+              className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Cancel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 group/title">
+            <h2 className="text-lg font-semibold text-slate-800">
+              {title || `${viewMode === 'dashboard' ? 'Dashboard' : 'Canvas'} Workspace`}
+            </h2>
+            {onTitleChange && (
+              <button
+                onClick={handleStartEditingTitle}
+                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors opacity-0 group-hover/title:opacity-100"
+                title="Edit title"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+        <span className="text-sm text-slate-500">
           {items.length} {items.length === 1 ? 'item' : 'items'}
         </span>
+
+        {/* View Mode Toggle */}
+        <div className="ml-4 flex items-center bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('dashboard')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              viewMode === 'dashboard'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setViewMode('canvas')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              viewMode === 'canvas'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Move className="h-4 w-4" />
+            Canvas
+          </button>
+        </div>
+
         <div className="ml-auto flex gap-2">
-          {items.length > 1 && (
+          {viewMode === 'canvas' && items.length > 1 && (
             <button
               onClick={handleAutoArrange}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100"
+              className="flex items-center gap-2 px-4 py-2 bg-violet-50 text-violet-600 rounded-lg hover:bg-violet-100 transition-colors"
               title="Auto-arrange all items"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -430,47 +547,57 @@ export function CanvasWorkspace({
         </div>
       </div>
 
-      {/* Canvas */}
-      <div
-        ref={canvasRef}
-        className="flex-1 relative overflow-auto"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px)
-          `,
-          backgroundSize: '20px 20px'
-        }}
-      >
-        {/* Export wrapper - captures this element for export */}
-        <div
-          ref={exportCanvasRef}
-          data-export-canvas
-          className="min-h-full"
-          style={{ backgroundColor: '#f9fafb' }}
-        >
-        {items.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-            <div className="text-center">
-              <Plus className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-              <p className="text-lg font-medium">No items yet</p>
-              <p className="text-sm mt-1">Ask a question in the chat to add items to the canvas</p>
-            </div>
-          </div>
-        ) : (
-          items.map(item => (
-            <SimpleDraggableItem
-              key={item.id}
-              item={item}
-              onPositionChange={handlePositionChange}
-              onSizeChange={handleSizeChange}
-              onContentChange={handleContentChange}
-              onDelete={handleDelete}
-            />
-          ))
-        )}
+      {/* Main Content Area */}
+      {viewMode === 'dashboard' ? (
+        <div ref={exportCanvasRef} data-export-canvas className="flex-1 overflow-hidden">
+          <DashboardGridView
+            items={items}
+            onItemContentChange={handleContentChange}
+          />
         </div>
-      </div>
+      ) : (
+        /* Canvas View */
+        <div
+          ref={canvasRef}
+          className="flex-1 relative overflow-auto"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px)
+            `,
+            backgroundSize: '20px 20px'
+          }}
+        >
+          {/* Export wrapper - captures this element for export */}
+          <div
+            ref={exportCanvasRef}
+            data-export-canvas
+            className="min-h-full"
+            style={{ backgroundColor: '#f8fafc' }}
+          >
+          {items.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center text-slate-500">
+              <div className="text-center">
+                <Plus className="h-12 w-12 mx-auto mb-2 text-slate-400" />
+                <p className="text-lg font-medium">No items yet</p>
+                <p className="text-sm mt-1">Ask a question in the chat to add items to the canvas</p>
+              </div>
+            </div>
+          ) : (
+            items.map(item => (
+              <SimpleDraggableItem
+                key={item.id}
+                item={item}
+                onPositionChange={handlePositionChange}
+                onSizeChange={handleSizeChange}
+                onContentChange={handleContentChange}
+                onDelete={handleDelete}
+              />
+            ))
+          )}
+          </div>
+        </div>
+      )}
     </div>
 
     {/* Export Dialog */}

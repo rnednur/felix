@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react'
+import { DashboardFilterConfig } from '@/types/dashboard'
 
 /**
  * Filter types
@@ -38,6 +39,16 @@ export interface FilterContextType {
   hasActiveFilters: boolean
   hasActiveGlobalFilters: boolean
   hasActiveChartFilters: (chartId: string) => boolean
+
+  // Cascading filter configuration
+  filterConfig: DashboardFilterConfig[]
+  setFilterConfig: (config: DashboardFilterConfig[]) => void
+  clearFilterConfig: () => void
+
+  // Cascading filter helpers
+  getVisibleFilters: () => DashboardFilterConfig[]
+  isFilterVisible: (filter: DashboardFilterConfig) => boolean
+  getParentFilterValues: (filter: DashboardFilterConfig) => (string | number | boolean)[] | null
 }
 
 const FilterContext = createContext<FilterContextType | undefined>(undefined)
@@ -45,6 +56,7 @@ const FilterContext = createContext<FilterContextType | undefined>(undefined)
 export function FilterProvider({ children }: { children: ReactNode }) {
   const [globalFilters, setGlobalFilters] = useState<FilterState>({})
   const [chartFilters, setChartFilters] = useState<{ [chartId: string]: FilterState }>({})
+  const [filterConfig, setFilterConfigState] = useState<DashboardFilterConfig[]>([])
 
   // Global filter operations
   const setGlobalFilter = useCallback((
@@ -120,10 +132,70 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     return Object.keys(chartFilters[chartId] || {}).length > 0
   }, [chartFilters])
 
+  // Cascading filter configuration operations
+  const setFilterConfig = useCallback((config: DashboardFilterConfig[]) => {
+    // Sort by order to ensure proper hierarchy
+    const sorted = [...config].sort((a, b) => a.order - b.order)
+    setFilterConfigState(sorted)
+  }, [])
+
+  const clearFilterConfig = useCallback(() => {
+    setFilterConfigState([])
+    // Also clear global filters when config is cleared
+    setGlobalFilters({})
+  }, [])
+
+  // Check if a filter should be visible based on its parent's selection
+  const isFilterVisible = useCallback((filter: DashboardFilterConfig): boolean => {
+    // Filters without dependencies are always visible
+    if (!filter.dependsOn) return true
+
+    // Check if parent filter has a selection
+    const parentFilter = globalFilters[filter.dependsOn]
+    return parentFilter && parentFilter.values.length > 0
+  }, [globalFilters])
+
+  // Get parent filter values for a dependent filter
+  const getParentFilterValues = useCallback((filter: DashboardFilterConfig): (string | number | boolean)[] | null => {
+    if (!filter.dependsOn) return null
+    const parentFilter = globalFilters[filter.dependsOn]
+    return parentFilter?.values || null
+  }, [globalFilters])
+
+  // Get all visible filters based on current selections
+  const getVisibleFilters = useCallback((): DashboardFilterConfig[] => {
+    return filterConfig.filter(isFilterVisible)
+  }, [filterConfig, isFilterVisible])
+
+  // When a parent filter changes, clear dependent filter selections
+  const setGlobalFilterWithCascade = useCallback((
+    column: string,
+    values: (string | number | boolean)[],
+    type: FilterValue['type']
+  ) => {
+    // First, set the new filter value
+    setGlobalFilters(prev => ({
+      ...prev,
+      [column]: { column, values, type }
+    }))
+
+    // Then, clear any dependent filters (filters that depend on this column)
+    const dependentFilters = filterConfig.filter(f => f.dependsOn === column)
+    if (dependentFilters.length > 0) {
+      setGlobalFilters(prev => {
+        const newState = { ...prev, [column]: { column, values, type } }
+        dependentFilters.forEach(dep => {
+          delete newState[dep.column]
+        })
+        return newState
+      })
+    }
+  }, [filterConfig])
+
   return (
     <FilterContext.Provider value={{
       globalFilters,
-      setGlobalFilter,
+      setGlobalFilter: setGlobalFilterWithCascade,
       clearGlobalFilter,
       clearAllGlobalFilters,
       chartFilters,
@@ -133,7 +205,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       getFiltersForChart,
       hasActiveFilters,
       hasActiveGlobalFilters,
-      hasActiveChartFilters
+      hasActiveChartFilters,
+      // Cascading filter support
+      filterConfig,
+      setFilterConfig,
+      clearFilterConfig,
+      getVisibleFilters,
+      isFilterVisible,
+      getParentFilterValues
     }}>
       {children}
     </FilterContext.Provider>

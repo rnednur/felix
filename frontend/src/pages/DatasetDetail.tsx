@@ -66,6 +66,7 @@ export default function DatasetDetail() {
   // Canvas mode state
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
   const [canvasMode, setCanvasMode] = useState(false)
+  const [canvasTitle, setCanvasTitle] = useState<string>('')
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [savedWorkspaces, setSavedWorkspaces] = useState<any[]>([])
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('auto')
@@ -390,6 +391,7 @@ export default function DatasetDetail() {
       }))
 
       setCanvasItems(loadedItems)
+      setCanvasTitle(workspace.name)
       setShowLoadDialog(false)
       alert(`✅ Loaded workspace: ${workspace.name}`)
     } catch (error: any) {
@@ -1062,6 +1064,7 @@ export default function DatasetDetail() {
                   content: item.content
                 }))
                 setCanvasItems(loadedItems)
+                setCanvasTitle(workspace.name)
               } catch (error) {
                 console.error('Failed to load generated workspace:', error)
               }
@@ -1305,6 +1308,8 @@ export default function DatasetDetail() {
           <CanvasWorkspace
             workspaceId={id || 'temp'}
             items={canvasItems}
+            title={canvasTitle}
+            onTitleChange={setCanvasTitle}
             onItemsChange={setCanvasItems}
             onLoad={handleLoadWorkspace}
             onSave={async (name: string, description?: string) => {

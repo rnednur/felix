@@ -74,3 +74,28 @@ export interface DashboardGenerateError {
   details?: string
   phase?: DashboardPhase
 }
+
+// Cascading Filter Configuration Types
+
+export interface DashboardFilterConfig {
+  id: string
+  column: string
+  label: string
+  order: number           // Display order (1, 2, 3...)
+  dependsOn?: string      // Parent filter column name (for cascading)
+  type: 'categorical' | 'numeric' | 'date'
+  defaultValue?: string | number | boolean
+  multiSelect?: boolean   // Allow multiple selections
+}
+
+export interface FilterSelectionState {
+  [column: string]: {
+    values: (string | number | boolean)[]
+    type: 'categorical' | 'numeric' | 'date'
+  }
+}
+
+export interface DashboardWithFilters {
+  filters?: DashboardFilterConfig[]
+  filterSelections?: FilterSelectionState
+}

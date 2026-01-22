@@ -13,6 +13,7 @@ export default function WorkspaceDetail() {
   const { id } = useParams<{ id: string }>()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [items, setItems] = useState<CanvasItem[]>([])
+  const [workspaceTitle, setWorkspaceTitle] = useState('')
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +47,7 @@ export default function WorkspaceDetail() {
         })
         setWorkspace(response.data)
         setItems(response.data.items || [])
+        setWorkspaceTitle(response.data.name || '')
       } catch (err: any) {
         setError(err.message)
       } finally {
@@ -202,6 +204,8 @@ export default function WorkspaceDetail() {
       <CanvasWorkspace
         workspaceId={id || ''}
         items={items}
+        title={workspaceTitle}
+        onTitleChange={setWorkspaceTitle}
         onItemsChange={setItems}
         onSave={handleSaveWorkspace}
       />
