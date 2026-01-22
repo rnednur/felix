@@ -22,6 +22,7 @@ interface ScoutResult {
   column_profiles: any[]
   discrepancies: any[]
   timestamp: string
+  cached?: boolean  // True if loaded from cache
 }
 
 export function DataScoutPanel({ datasetId, datasetName, onQuestionClick }: DataScoutPanelProps) {
@@ -29,17 +30,35 @@ export function DataScoutPanel({ datasetId, datasetName, onQuestionClick }: Data
   const [showDetails, setShowDetails] = useState(false)
   const [showSemanticDetails, setShowSemanticDetails] = useState(false)
 
-  // Fetch scouting results
+  // Fetch scouting results (uses backend cache)
   const { data: scoutData, isLoading, refetch } = useQuery<ScoutResult>({
     queryKey: ['data-scout', datasetId],
     queryFn: async () => {
       const response = await axios.post(`/datasets/${datasetId}/scout`, {
-        sample_size: 1000
+        sample_size: 1000,
+        force_refresh: false  // Use cache if available
       })
       return response.data
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    refetchOnWindowFocus: false
+    staleTime: Infinity,  // Never refetch automatically - backend handles caching
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false
+  })
+
+  // Force refresh scouting (bypass cache)
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const response = await axios.post(`/datasets/${datasetId}/scout`, {
+        sample_size: 1000,
+        force_refresh: true  // Bypass cache
+      })
+      return response.data
+    },
+    onSuccess: (data) => {
+      // Update the query cache with new data
+      refetch()
+    }
   })
 
   // Regenerate observations with LLM
@@ -54,6 +73,8 @@ export function DataScoutPanel({ datasetId, datasetName, onQuestionClick }: Data
       refetch()
     }
   })
+
+  const isRefreshing = refreshMutation.isPending
 
   // Group discrepancies by severity
   const highPriorityIssues = scoutData?.discrepancies?.filter(d => d.severity === 'high') || []
@@ -116,14 +137,20 @@ export function DataScoutPanel({ datasetId, datasetName, onQuestionClick }: Data
             )}
           </div>
           <div className="flex items-center space-x-2">
+            {scoutData?.cached && (
+              <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                Cached
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => refetch()}
-              disabled={isLoading}
+              onClick={() => refreshMutation.mutate()}
+              disabled={isLoading || isRefreshing}
               className="text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+              title="Refresh scouting data"
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             <Button
               variant="ghost"

@@ -23,10 +23,11 @@ import { PlanEditor } from '@/components/research/PlanEditor'
 import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal'
 import { ScoutingDialog } from '@/components/scouting/ScoutingDialog'
 import { ScoutingResults } from '@/components/scouting/ScoutingResults'
+import { DashboardGeneratorModal } from '@/components/dashboard/DashboardGeneratorModal'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles, Map as MapIcon } from 'lucide-react'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles, Map as MapIcon, LayoutDashboard } from 'lucide-react'
 import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, chatWithAgent, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult, type AgentResponse } from '@/services/api'
 import axios from '@/services/api'
 
@@ -106,6 +107,9 @@ export default function DatasetDetail() {
   const [showScoutingDialog, setShowScoutingDialog] = useState(false)
   const [scoutingResult, setScoutingResult] = useState<any>(null)
   const [showScoutingResults, setShowScoutingResults] = useState(false)
+
+  // Dashboard Generator
+  const [showDashboardGenerator, setShowDashboardGenerator] = useState(false)
 
   // Agent mode
   const [agentSessionId, setAgentSessionId] = useState<string | undefined>(undefined)
@@ -1024,6 +1028,49 @@ export default function DatasetDetail() {
         />
       )}
 
+      {/* Dashboard Generator Modal */}
+      <DashboardGeneratorModal
+        datasetId={id!}
+        datasetName={dataset?.name || 'Dataset'}
+        isOpen={showDashboardGenerator}
+        onClose={() => setShowDashboardGenerator(false)}
+        onComplete={(workspaceId) => {
+          setShowDashboardGenerator(false)
+          // Navigate to the generated workspace
+          if (workspaceId) {
+            // Load the workspace into canvas mode
+            setCanvasMode(true)
+            setCurrentView('canvas')
+            // Fetch and load the workspace items
+            const loadGeneratedWorkspace = async () => {
+              try {
+                const token = localStorage.getItem('access_token')
+                if (!token) return
+                const response = await axios.get(`/workspaces/${workspaceId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                })
+                const workspace = response.data
+                const loadedItems: CanvasItem[] = workspace.items.map((item: any) => ({
+                  id: item.id,
+                  workspaceId: workspace.id,
+                  type: item.type,
+                  x: item.x,
+                  y: item.y,
+                  width: item.width,
+                  height: item.height,
+                  zIndex: item.z_index,
+                  content: item.content
+                }))
+                setCanvasItems(loadedItems)
+              } catch (error) {
+                console.error('Failed to load generated workspace:', error)
+              }
+            }
+            loadGeneratedWorkspace()
+          }
+        }}
+      />
+
       {/* Dataset Settings Panel */}
       {showSettingsPanel && dataset && schema && (
         <DatasetSettingsPanel
@@ -1204,6 +1251,15 @@ export default function DatasetDetail() {
                   className="bg-purple-600 hover:bg-purple-700 text-white"
                 >
                   <Sparkles className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
+                  tooltip="Create Dashboard"
+                  onClick={() => setShowDashboardGenerator(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <LayoutDashboard className="h-5 w-5" />
                 </IconButton>
                 <IconButton
                   variant="default"

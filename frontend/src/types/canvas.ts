@@ -44,12 +44,26 @@ export interface MLModelContent {
   predictions?: any[]
 }
 
+export interface KPICardContent {
+  id: string
+  name: string
+  value: string | number
+  formattedValue: string
+  trend?: number
+  trendDirection?: 'up' | 'down' | 'flat'
+  comparisonLabel?: string
+  column?: string
+  aggregation?: string
+  sparklineData?: number[]
+}
+
 export type CanvasItemContent =
   | QueryResultContent
   | ChartContent
   | InsightNoteContent
   | CodeBlockContent
   | MLModelContent
+  | KPICardContent
 
 export type CanvasItemType =
   | 'query-result'
@@ -57,6 +71,7 @@ export type CanvasItemType =
   | 'insight-note'
   | 'code-block'
   | 'ml-model'
+  | 'kpi-card'
 
 export interface CanvasItem {
   id: string

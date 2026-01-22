@@ -16,6 +16,7 @@ from app.services.agents.visualization_agent import VisualizationAgent
 from app.services.agents.statistical_agent import StatisticalAgent
 from app.services.agents.ml_agent import MLAgent
 from app.services.agents.geospatial_agent import GeospatialAgent
+from app.services.agents.dashboard_planner_agent import DashboardPlannerAgent
 
 
 class AgentFactory:
@@ -33,6 +34,7 @@ class AgentFactory:
         'statistical_agent': StatisticalAgent,
         'ml_agent': MLAgent,
         'geospatial_agent': GeospatialAgent,
+        'dashboard_planner_agent': DashboardPlannerAgent,
     }
 
     @classmethod

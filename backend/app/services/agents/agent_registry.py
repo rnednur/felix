@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from app.schemas.agent import AgentConfig, AgentRequest
 from app.services.agents.base_agent import BaseAgent
+from app.core.config import settings
 
 
 class AgentRegistry:
@@ -91,6 +92,9 @@ class AgentRegistry:
         Note: This only loads the configs. Actual agent instances
         must be created and registered separately.
 
+        The model in llm_config is overridden by settings.AGENT_MODEL
+        to allow centralized model configuration via .env file.
+
         Args:
             config_path: Path to agents_config.json
         """
@@ -105,6 +109,9 @@ class AgentRegistry:
         configs = data.get('agents', [])
 
         for config_dict in configs:
+            # Override the model from settings.AGENT_MODEL
+            if 'llm_config' in config_dict:
+                config_dict['llm_config']['default_model'] = settings.AGENT_MODEL
             config = AgentConfig.from_dict(config_dict)
             self.agent_configs[config.name] = config
 

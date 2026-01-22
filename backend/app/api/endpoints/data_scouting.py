@@ -19,6 +19,7 @@ router = APIRouter()
 
 class ScoutRequest(BaseModel):
     sample_size: int = 1000
+    force_refresh: bool = False  # Set to True to bypass cache
 
 
 class RegenerateObservationsRequest(BaseModel):
@@ -45,12 +46,18 @@ async def scout_dataset(
     """
     Perform data scouting on a dataset.
 
+    Results are cached after first run. Use force_refresh=True to regenerate.
+
     Returns:
     - First Look Observations (data quality, patterns, discrepancies)
     - Scouting Questions (targeted follow-up questions)
     - Column profiles (detailed statistics)
     - Discrepancies (metadata vs actual data)
     """
+    import json
+    import os
+    from pathlib import Path
+
     # Get dataset
     dataset = db.query(Dataset).filter(
         Dataset.id == dataset_id,
@@ -60,11 +67,36 @@ async def scout_dataset(
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
+    # Check for cached scouting results
+    cache_dir = Path("data/scouting_cache")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / f"{dataset_id}.json"
+
+    # Return cached results if available and not forcing refresh
+    if cache_file.exists() and not request.force_refresh:
+        try:
+            with open(cache_file, 'r') as f:
+                cached_result = json.load(f)
+                cached_result['cached'] = True
+                return cached_result
+        except Exception as e:
+            # Cache read failed, continue to regenerate
+            pass
+
     # Perform scouting
     try:
         scouting_service = DataScoutingService()
         result = scouting_service.scout_dataset(dataset_id, request.sample_size)
 
+        # Cache the result
+        try:
+            with open(cache_file, 'w') as f:
+                json.dump(result, f)
+        except Exception as cache_error:
+            # Cache write failed, but still return result
+            pass
+
+        result['cached'] = False
         return result
     except Exception as e:
         import traceback

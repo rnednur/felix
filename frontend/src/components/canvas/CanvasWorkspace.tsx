@@ -1,10 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { CanvasItem, CanvasItemType } from '@/types/canvas'
+import { CanvasItem, CanvasItemType, KPICardContent } from '@/types/canvas'
 import { QueryResultItem } from './QueryResultItem'
 import { ChartItem } from './ChartItem'
 import { CodeBlockItem } from './CodeBlockItem'
 import { InsightNoteItem } from './InsightNoteItem'
-import { Plus, Save, Download, Trash2, X, FolderOpen, LayoutGrid } from 'lucide-react'
+import { KPICard } from './KPICard'
+import { ExportDialog } from '@/components/export/ExportDialog'
+import { ThemeExtractor } from '@/components/theming/ThemeExtractor'
+import { Plus, Save, Download, Trash2, X, FolderOpen, LayoutGrid, Palette } from 'lucide-react'
 
 interface CanvasWorkspaceProps {
   workspaceId: string
@@ -100,6 +103,7 @@ function SimpleDraggableItem({
       case 'chart':
         return <ChartItem
           content={item.content as any}
+          chartId={item.id}
           onTitleChange={(newTitle) => {
             const updatedContent = { ...item.content as any, title: newTitle }
             onContentChange(item.id, updatedContent)
@@ -109,6 +113,8 @@ function SimpleDraggableItem({
         return <CodeBlockItem content={item.content as any} />
       case 'insight-note':
         return <InsightNoteItem content={item.content as any} />
+      case 'kpi-card':
+        return <KPICard content={item.content as KPICardContent} />
       default:
         return <div>Unknown item type</div>
     }
@@ -176,7 +182,10 @@ export function CanvasWorkspace({
   onLoad
 }: CanvasWorkspaceProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const exportCanvasRef = useRef<HTMLDivElement>(null)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showThemeExtractor, setShowThemeExtractor] = useState(false)
   const [workspaceName, setWorkspaceName] = useState('')
   const [workspaceDescription, setWorkspaceDescription] = useState('')
 
@@ -402,9 +411,21 @@ export function CanvasWorkspace({
             <Save className="h-4 w-4" />
             Save
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+          <button
+            onClick={() => setShowExportDialog(true)}
+            disabled={items.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Download className="h-4 w-4" />
             Export
+          </button>
+          <button
+            onClick={() => setShowThemeExtractor(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
+            title="Extract theme colors from image"
+          >
+            <Palette className="h-4 w-4" />
+            Theme
           </button>
         </div>
       </div>
@@ -421,6 +442,13 @@ export function CanvasWorkspace({
           backgroundSize: '20px 20px'
         }}
       >
+        {/* Export wrapper - captures this element for export */}
+        <div
+          ref={exportCanvasRef}
+          data-export-canvas
+          className="min-h-full"
+          style={{ backgroundColor: '#f9fafb' }}
+        >
         {items.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center text-gray-500">
             <div className="text-center">
@@ -441,8 +469,24 @@ export function CanvasWorkspace({
             />
           ))
         )}
+        </div>
       </div>
     </div>
+
+    {/* Export Dialog */}
+    <ExportDialog
+      isOpen={showExportDialog}
+      onClose={() => setShowExportDialog(false)}
+      canvasElement={exportCanvasRef.current}
+      workspaceName={workspaceName || 'dashboard'}
+    />
+
+    {/* Theme Extractor */}
+    <ThemeExtractor
+      isOpen={showThemeExtractor}
+      onClose={() => setShowThemeExtractor(false)}
+      workspaceId={workspaceId}
+    />
     </>
   )
 }

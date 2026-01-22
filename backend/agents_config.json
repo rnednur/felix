@@ -157,6 +157,34 @@
         "latitude", "longitude", "address", "distance", "nearest",
         "proximity", "geocode", "geospatial"
       ]
+    },
+    {
+      "name": "dashboard_planner_agent",
+      "display_name": "Dashboard Planner Agent",
+      "description": "Orchestrates automatic dashboard generation from datasets with KPIs, charts, and insights",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "dashboard_generation",
+        "kpi_identification",
+        "chart_selection",
+        "insight_generation",
+        "layout_optimization"
+      ],
+      "libraries": ["duckdb", "pandas"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.3,
+        "max_tokens": 2000
+      },
+      "prompts": {
+        "default": "You are a dashboard design expert. Create insightful, actionable dashboards from data."
+      },
+      "intent_keywords": [
+        "dashboard", "overview", "summary dashboard", "create dashboard",
+        "auto dashboard", "visualize all", "complete analysis", "full report",
+        "executive summary", "data overview", "generate dashboard"
+      ]
     }
   ]
 }

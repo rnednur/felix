@@ -1,17 +1,36 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ChartContent } from '@/types/canvas'
 import { VegaChart } from '@/components/visualization/VegaChart'
+import { ChartFilterButton } from '@/components/filters/ChartFilterButton'
+import { useFilters } from '@/contexts/FilterContext'
+import { applyFiltersToSpec } from '@/lib/vegaFilters'
 import { Edit2, Check } from 'lucide-react'
 
 interface ChartItemProps {
   content: ChartContent
+  chartId?: string
   onTitleChange?: (newTitle: string) => void
 }
 
-export function ChartItem({ content, onTitleChange }: ChartItemProps) {
-  const { vegaSpec, title, chartType } = content
+export function ChartItem({ content, chartId, onTitleChange }: ChartItemProps) {
+  const { vegaSpec, title, chartType, data } = content
   const [isEditing, setIsEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState(title || `${chartType} Chart`)
+
+  // Get filters from context
+  const { getFiltersForChart } = useFilters()
+  const filters = chartId ? getFiltersForChart(chartId) : {}
+
+  // Apply filters to the Vega spec
+  const filteredSpec = useMemo(() => {
+    if (!vegaSpec || Object.keys(filters).length === 0) {
+      return vegaSpec
+    }
+    return applyFiltersToSpec(vegaSpec, filters)
+  }, [vegaSpec, filters])
+
+  // Chart data for filter options
+  const chartData = data || vegaSpec?.data?.values || []
 
   const handleSaveTitle = () => {
     if (onTitleChange && editedTitle.trim()) {
@@ -53,25 +72,36 @@ export function ChartItem({ content, onTitleChange }: ChartItemProps) {
           </div>
         ) : (
           <>
-            <h3 className="text-sm font-semibold text-gray-700 capitalize">
+            <h3 className="text-sm font-semibold text-gray-700 capitalize flex-1">
               {editedTitle}
             </h3>
-            {onTitleChange && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Edit title"
-              >
-                <Edit2 className="h-3 w-3" />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {/* Chart filter button */}
+              {chartId && chartData.length > 0 && (
+                <ChartFilterButton
+                  chartId={chartId}
+                  chartData={chartData}
+                />
+              )}
+              {onTitleChange && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Edit title"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>
 
-      {/* Chart */}
-      <div className="flex-1 p-4 overflow-auto">
-        <VegaChart spec={vegaSpec} onExport={() => {}} />
+      {/* Chart - fill container for responsive Vega-Lite */}
+      <div className="flex-1 p-4 min-h-0">
+        <div className="w-full h-full">
+          <VegaChart spec={filteredSpec} onExport={() => {}} />
+        </div>
       </div>
     </div>
   )
