@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react'
-import { ChartContent } from '@/types/canvas'
+import { ChartContent, DisplaySize } from '@/types/canvas'
 import { VegaChart } from '@/components/visualization/VegaChart'
 import { ChartFilterButton } from '@/components/filters/ChartFilterButton'
 import { useFilters } from '@/contexts/FilterContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { applyFiltersToSpec } from '@/lib/vegaFilters'
-import { Edit2, Check } from 'lucide-react'
+import { Edit2, Check, Minimize2, Square, Maximize2, RectangleHorizontal, Trash2 } from 'lucide-react'
 import { CardBadge } from '@/components/ui/card-badge'
 
 interface ChartItemProps {
@@ -13,10 +13,20 @@ interface ChartItemProps {
   chartId?: string
   chartIndex?: number
   onTitleChange?: (newTitle: string) => void
+  onSizeChange?: (newSize: DisplaySize) => void
+  onDelete?: () => void
 }
 
-export function ChartItem({ content, chartId, chartIndex, onTitleChange }: ChartItemProps) {
-  const { vegaSpec, title, chartType, data } = content
+const SIZE_OPTIONS: { size: DisplaySize; icon: typeof Square; label: string; tooltip: string }[] = [
+  { size: 'small', icon: Minimize2, label: 'S', tooltip: 'Small (1 column)' },
+  { size: 'medium', icon: Square, label: 'M', tooltip: 'Medium (1 column)' },
+  { size: 'large', icon: Maximize2, label: 'L', tooltip: 'Large (2 columns)' },
+  { size: 'full', icon: RectangleHorizontal, label: 'Full', tooltip: 'Full width' },
+]
+
+export function ChartItem({ content, chartId, chartIndex, onTitleChange, onSizeChange, onDelete }: ChartItemProps) {
+  const { vegaSpec, title, chartType, data, displaySize } = content
+  const currentSize = displaySize || 'medium'
 
   // Serialize config for annotation system - include vegaSpec for LLM to modify
   const felixConfig = chartId ? JSON.stringify({
@@ -133,6 +143,32 @@ export function ChartItem({ content, chartId, chartIndex, onTitleChange }: Chart
           )}
         </div>
         <div className="flex items-center gap-1.5 ml-2">
+          {/* Size controls */}
+          {onSizeChange && (
+            <div
+              className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all rounded-lg p-0.5"
+              style={{
+                backgroundColor: persona.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+              }}
+            >
+              {SIZE_OPTIONS.map(({ size, icon: Icon, tooltip }) => (
+                <button
+                  key={size}
+                  onClick={() => onSizeChange(size)}
+                  className="p-1 rounded transition-all"
+                  style={{
+                    color: currentSize === size ? persona.primary : persona.textMuted,
+                    backgroundColor: currentSize === size
+                      ? (persona.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)')
+                      : 'transparent'
+                  }}
+                  title={tooltip}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              ))}
+            </div>
+          )}
           {/* Chart filter button */}
           {chartId && chartData.length > 0 && (
             <ChartFilterButton
@@ -150,6 +186,18 @@ export function ChartItem({ content, chartId, chartIndex, onTitleChange }: Chart
               title="Edit title"
             >
               <Edit2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20"
+              style={{
+                color: persona.textMuted,
+              }}
+              title="Delete chart"
+            >
+              <Trash2 className="h-3.5 w-3.5 hover:text-red-500" />
             </button>
           )}
         </div>

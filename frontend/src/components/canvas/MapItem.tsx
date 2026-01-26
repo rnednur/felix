@@ -1,18 +1,30 @@
 import { useState } from 'react'
-import { MapContent } from '@/types/canvas'
+import { MapContent, DisplaySize } from '@/types/canvas'
 import { MapView } from '@/components/map/MapView'
-import { Edit2, Check } from 'lucide-react'
+import { Edit2, Check, Minimize2, Square, Maximize2, RectangleHorizontal, Trash2 } from 'lucide-react'
 import { CardBadge } from '@/components/ui/card-badge'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface MapItemProps {
   content: MapContent
   mapId?: string
   mapIndex?: number
   onTitleChange?: (newTitle: string) => void
+  onSizeChange?: (newSize: DisplaySize) => void
+  onDelete?: () => void
 }
 
-export function MapItem({ content, mapId, mapIndex, onTitleChange }: MapItemProps) {
-  const { title, data, spatialColumns, config, datasetId } = content
+const SIZE_OPTIONS: { size: DisplaySize; icon: typeof Square; label: string; tooltip: string }[] = [
+  { size: 'small', icon: Minimize2, label: 'S', tooltip: 'Small (1 column)' },
+  { size: 'medium', icon: Square, label: 'M', tooltip: 'Medium (1 column)' },
+  { size: 'large', icon: Maximize2, label: 'L', tooltip: 'Large (2 columns)' },
+  { size: 'full', icon: RectangleHorizontal, label: 'Full', tooltip: 'Full width' },
+]
+
+export function MapItem({ content, mapId, mapIndex, onTitleChange, onSizeChange, onDelete }: MapItemProps) {
+  const { title, data, spatialColumns, config, datasetId, displaySize } = content
+  const currentSize = displaySize || 'large'
+  const { persona } = useTheme()
   const [isEditing, setIsEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState(title || 'Geographic Distribution')
 
@@ -101,6 +113,32 @@ export function MapItem({ content, mapId, mapIndex, onTitleChange }: MapItemProp
           )}
         </div>
         <div className="flex items-center gap-1.5 ml-2">
+          {/* Size controls */}
+          {onSizeChange && (
+            <div
+              className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all rounded-lg p-0.5"
+              style={{
+                backgroundColor: persona.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+              }}
+            >
+              {SIZE_OPTIONS.map(({ size, icon: Icon, tooltip }) => (
+                <button
+                  key={size}
+                  onClick={() => onSizeChange(size)}
+                  className="p-1 rounded transition-all"
+                  style={{
+                    color: currentSize === size ? persona.primary : persona.textMuted,
+                    backgroundColor: currentSize === size
+                      ? (persona.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)')
+                      : 'transparent'
+                  }}
+                  title={tooltip}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              ))}
+            </div>
+          )}
           {onTitleChange && !isEditing && (
             <button
               onClick={() => setIsEditing(true)}
@@ -108,6 +146,18 @@ export function MapItem({ content, mapId, mapIndex, onTitleChange }: MapItemProp
               title="Edit title"
             >
               <Edit2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20"
+              style={{
+                color: persona.textMuted,
+              }}
+              title="Delete map"
+            >
+              <Trash2 className="h-3.5 w-3.5 hover:text-red-500" />
             </button>
           )}
         </div>

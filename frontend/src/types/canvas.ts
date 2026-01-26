@@ -1,5 +1,14 @@
 // Canvas item types for Felix
 
+/**
+ * Display size for dashboard grid items
+ * - small: 1 column (compact view)
+ * - medium: 1 column on mobile, flexible on desktop (default)
+ * - large: 2 columns on desktop
+ * - full: full width (all columns)
+ */
+export type DisplaySize = 'small' | 'medium' | 'large' | 'full'
+
 export interface CanvasItemPosition {
   x: number
   y: number
@@ -22,6 +31,7 @@ export interface ChartContent {
   title?: string
   sourceQueryId?: string
   data?: any[]
+  displaySize?: DisplaySize
 }
 
 export interface InsightNoteContent {
@@ -70,6 +80,7 @@ export interface MapContent {
   datasetId?: string
   // For export - captured static image
   staticImageUrl?: string
+  displaySize?: DisplaySize
 }
 
 export type CanvasItemContent =

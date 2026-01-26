@@ -921,6 +921,10 @@ Respond ONLY with the JSON object, no explanation."""
         if intent.intent_type == 'add_element':
             return await self._generate_new_element(element_id, element_type, element_config, feedback, intent)
 
+        # Handle resizing elements
+        if intent.intent_type == 'resize_element':
+            return self._generate_resize_edit(element_id, element_type, feedback, intent)
+
         # Use specialized handlers for different element types
         if element_type == 'chart':
             return await self._generate_chart_edit(element_id, element_config, feedback, intent)
@@ -930,6 +934,53 @@ Respond ONLY with the JSON object, no explanation."""
             return await self._generate_insight_edit(element_id, element_config, feedback, intent)
         else:
             return await self._generate_generic_edit(element_id, element_type, element_config, feedback, intent)
+
+    def _generate_resize_edit(
+        self,
+        element_id: str,
+        element_type: str,
+        feedback: str,
+        intent: IntentAnalysis
+    ) -> DashboardEdit:
+        """
+        Generate resize edit based on user feedback
+
+        Maps natural language size requests to displaySize values:
+        - small: "smaller", "compact", "mini"
+        - medium: "medium", "normal", "default"
+        - large: "larger", "bigger", "expand", "2 columns"
+        - full: "full width", "full", "maximize", "entire width", "all columns"
+        """
+        feedback_lower = feedback.lower()
+
+        # Determine target size from feedback
+        if any(word in feedback_lower for word in ['full width', 'full', 'maximize', 'entire width', 'all columns', 'whole width']):
+            new_size = 'full'
+            size_description = 'full width'
+        elif any(word in feedback_lower for word in ['larger', 'bigger', 'expand', '2 column', 'two column', 'double']):
+            new_size = 'large'
+            size_description = 'large (2 columns)'
+        elif any(word in feedback_lower for word in ['smaller', 'compact', 'mini', 'reduce', 'shrink']):
+            new_size = 'small'
+            size_description = 'small (1 column)'
+        elif any(word in feedback_lower for word in ['medium', 'normal', 'default', 'reset']):
+            new_size = 'medium'
+            size_description = 'medium (default)'
+        else:
+            # Default to large if just "make bigger" or similar
+            new_size = 'large'
+            size_description = 'large (2 columns)'
+
+        self.logger.info(f"[DashboardEditorAgent] Resize request: '{feedback}' -> {new_size}")
+
+        return DashboardEdit(
+            element_id=element_id,
+            action='modify',
+            changes={
+                'displaySize': new_size
+            },
+            reasoning=f"Resized {element_type} to {size_description} based on request: {feedback}"
+        )
 
     async def _generate_chart_edit(
         self,

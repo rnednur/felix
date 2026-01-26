@@ -413,11 +413,25 @@ export function CanvasWorkspace({
         if (item.id === edit.elementId) {
           console.log('[CanvasWorkspace] Applying changes to item:', item.type, edit.changes)
 
+          // Handle displaySize changes (applies to any element type)
+          const displaySizeChange = edit.changes.displaySize ? { displaySize: edit.changes.displaySize } : {}
+
           // Handle chart-specific changes
           if (item.type === 'chart' && item.content && (item.content as any).vegaSpec) {
             const newContent = applyChartChanges(item.content, edit.changes)
-            console.log('[CanvasWorkspace] Updated chart content:', newContent)
-            return { ...item, content: newContent }
+            // Also apply displaySize if present
+            const finalContent = { ...newContent, ...displaySizeChange }
+            console.log('[CanvasWorkspace] Updated chart content:', finalContent)
+            return { ...item, content: finalContent }
+          }
+
+          // Handle map-specific displaySize changes
+          if (item.type === 'map' && displaySizeChange.displaySize) {
+            console.log('[CanvasWorkspace] Applying displaySize to map:', displaySizeChange)
+            return {
+              ...item,
+              content: { ...item.content, ...displaySizeChange }
+            }
           }
 
           // For other types, just merge the changes
@@ -764,6 +778,7 @@ export function CanvasWorkspace({
               items={items}
               workspaceId={workspaceId}
               onItemContentChange={handleContentChange}
+              onItemDelete={handleDelete}
               onItemAdd={handleAnnotationEdit}
             />
           </div>

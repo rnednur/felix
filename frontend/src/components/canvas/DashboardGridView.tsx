@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { CanvasItem, KPICardContent, ChartContent, InsightNoteContent, MapContent, QueryResultContent } from '@/types/canvas'
+import { CanvasItem, KPICardContent, ChartContent, InsightNoteContent, MapContent, QueryResultContent, DisplaySize } from '@/types/canvas'
 import { DashboardFilterConfig } from '@/types/dashboard'
 import { KPICard } from './KPICard'
 import { ChartItem } from './ChartItem'
@@ -9,12 +9,48 @@ import { MapItem } from './MapItem'
 import { CascadingGlobalFilterBar } from '@/components/filters/CascadingGlobalFilterBar'
 import { CreateZone, DashboardContext, KPIContext, ChartContext, DashboardEdit } from '@/components/annotation'
 
+/**
+ * Get CSS class for grid column span based on display size
+ */
+function getColSpanClass(displaySize: DisplaySize | undefined, defaultSize: DisplaySize = 'medium'): string {
+  const size = displaySize || defaultSize
+  switch (size) {
+    case 'small':
+      return 'col-span-1'
+    case 'medium':
+      return 'col-span-1 lg:col-span-1'
+    case 'large':
+      return 'col-span-1 lg:col-span-2'
+    case 'full':
+      return 'col-span-1 lg:col-span-full'
+    default:
+      return 'col-span-1'
+  }
+}
+
+/**
+ * Get min height based on display size
+ */
+function getMinHeight(displaySize: DisplaySize | undefined, baseHeight: number = 350): string {
+  const size = displaySize || 'medium'
+  switch (size) {
+    case 'small':
+      return `${baseHeight * 0.8}px`
+    case 'large':
+    case 'full':
+      return `${baseHeight * 1.2}px`
+    default:
+      return `${baseHeight}px`
+  }
+}
+
 interface DashboardGridViewProps {
   items: CanvasItem[]
   datasetId?: string
   workspaceId?: string
   filterConfig?: DashboardFilterConfig[]
   onItemContentChange?: (id: string, content: any) => void
+  onItemDelete?: (id: string) => void
   onConfigureFilters?: () => void
   onItemAdd?: (edit: DashboardEdit) => void
 }
@@ -25,6 +61,7 @@ export function DashboardGridView({
   workspaceId,
   filterConfig,
   onItemContentChange,
+  onItemDelete,
   onConfigureFilters,
   onItemAdd
 }: DashboardGridViewProps) {
@@ -181,63 +218,86 @@ export function DashboardGridView({
             </div>
           )}
 
-          {/* Charts and Insights Grid */}
-          {(charts.length > 0 || insights.length > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Charts - takes 2 columns on large screens */}
-              <div className={`${insights.length > 0 ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
-                <div className={`grid gap-6 ${charts.length === 1 ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
-                  {charts.map((item, index) => (
-                    <div key={item.id} className="min-h-[350px]">
-                      <ChartItem
-                        content={item.content as ChartContent}
-                        chartId={item.id}
-                        chartIndex={index}
-                        onTitleChange={onItemContentChange ? (newTitle) => {
-                          const updatedContent = { ...item.content as ChartContent, title: newTitle }
-                          onItemContentChange(item.id, updatedContent)
-                        } : undefined}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {/* Charts Section - flexible grid with per-item sizing */}
+          {charts.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {charts.map((item, index) => {
+                const content = item.content as ChartContent
+                const colSpanClass = getColSpanClass(content.displaySize, 'medium')
+                const minHeight = getMinHeight(content.displaySize, 350)
 
-              {/* Insights Panel - takes 1 column on large screens */}
-              {insights.length > 0 && (
-                <div className="lg:col-span-1 space-y-4">
-                  {insights.map(item => (
-                    <div key={item.id} className="min-h-[200px]">
-                      <InsightNoteItem
-                        content={item.content as InsightNoteContent}
-                        variant="dashboard"
-                        itemId={item.id}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+                return (
+                  <div
+                    key={item.id}
+                    className={`${colSpanClass}`}
+                    style={{ minHeight }}
+                  >
+                    <ChartItem
+                      content={content}
+                      chartId={item.id}
+                      chartIndex={index}
+                      onTitleChange={onItemContentChange ? (newTitle) => {
+                        const updatedContent = { ...content, title: newTitle }
+                        onItemContentChange(item.id, updatedContent)
+                      } : undefined}
+                      onSizeChange={onItemContentChange ? (newSize: DisplaySize) => {
+                        const updatedContent = { ...content, displaySize: newSize }
+                        onItemContentChange(item.id, updatedContent)
+                      } : undefined}
+                      onDelete={onItemDelete ? () => onItemDelete(item.id) : undefined}
+                    />
+                  </div>
+                )
+              })}
             </div>
           )}
 
-          {/* Maps Section */}
+          {/* Insights Section */}
+          {insights.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {insights.map(item => (
+                <div key={item.id} className="min-h-[200px]">
+                  <InsightNoteItem
+                    content={item.content as InsightNoteContent}
+                    variant="dashboard"
+                    itemId={item.id}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Maps Section - flexible grid with per-item sizing */}
           {maps.length > 0 && (
-            <div className="space-y-6">
-              <div className={`grid gap-6 ${maps.length === 1 ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-                {maps.map((item, index) => (
-                  <div key={item.id} className="min-h-[450px]">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {maps.map((item, index) => {
+                const content = item.content as MapContent
+                const colSpanClass = getColSpanClass(content.displaySize, 'large')
+                const minHeight = getMinHeight(content.displaySize, 450)
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`${colSpanClass}`}
+                    style={{ minHeight }}
+                  >
                     <MapItem
-                      content={item.content as MapContent}
+                      content={content}
                       mapId={item.id}
                       mapIndex={index}
                       onTitleChange={onItemContentChange ? (newTitle) => {
-                        const updatedContent = { ...item.content as MapContent, title: newTitle }
+                        const updatedContent = { ...content, title: newTitle }
                         onItemContentChange(item.id, updatedContent)
                       } : undefined}
+                      onSizeChange={onItemContentChange ? (newSize: DisplaySize) => {
+                        const updatedContent = { ...content, displaySize: newSize }
+                        onItemContentChange(item.id, updatedContent)
+                      } : undefined}
+                      onDelete={onItemDelete ? () => onItemDelete(item.id) : undefined}
                     />
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
           )}
 
