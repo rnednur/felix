@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
+import { ThemePersona } from '@/types/theme'
+import { THEME_PRESETS, getThemeById, getDefaultTheme } from '@/lib/themePresets'
 
 /**
- * Theme types
+ * Theme types (legacy - for image extraction)
  */
 export interface ExtractedColor {
   rgb: [number, number, number]
@@ -22,9 +24,14 @@ export interface ThemePalette {
 }
 
 export interface ThemeContextType {
-  // Current theme
+  // Current theme (legacy)
   theme: ThemePalette | null
   setTheme: (palette: ThemePalette | null) => void
+
+  // Theme Persona (new)
+  persona: ThemePersona
+  setPersona: (id: string) => void
+  personas: ThemePersona[]
 
   // Apply theme to document
   applyTheme: (palette: ThemePalette) => void
@@ -39,14 +46,71 @@ export interface ThemeContextType {
   setExtractedColors: (colors: ExtractedColor[]) => void
 }
 
+const PERSONA_STORAGE_KEY = 'dashboard-theme-persona'
+
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemePalette | null>(null)
+  const [persona, setPersonaState] = useState<ThemePersona>(getDefaultTheme())
   const [extractedColors, setExtractedColors] = useState<ExtractedColor[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
-  // Apply CSS variables to document
+  // Apply persona CSS variables to document
+  const applyPersona = useCallback((p: ThemePersona) => {
+    const root = document.documentElement
+
+    // Set CSS variables for persona
+    root.style.setProperty('--theme-bg', p.background)
+    root.style.setProperty('--theme-card-bg', p.cardBackground)
+    root.style.setProperty('--theme-card-border', p.cardBorder)
+    root.style.setProperty('--theme-text-primary', p.textPrimary)
+    root.style.setProperty('--theme-text-secondary', p.textSecondary)
+    root.style.setProperty('--theme-text-muted', p.textMuted)
+    root.style.setProperty('--theme-primary', p.primary)
+    root.style.setProperty('--theme-secondary', p.secondary)
+    root.style.setProperty('--theme-accent', p.accent)
+    root.style.setProperty('--theme-kpi-value', p.kpiValueColor)
+    root.style.setProperty('--theme-insight-accent', p.insightAccent)
+    root.style.setProperty('--theme-is-dark', p.isDark ? '1' : '0')
+    root.style.setProperty('--theme-badge-style', p.badgeStyle)
+
+    // Set chart colors as a CSS variable (comma-separated for easy parsing)
+    root.style.setProperty('--theme-chart-colors', p.chartColors.join(','))
+
+    // Set data attribute for CSS selectors
+    root.setAttribute('data-theme-persona', p.id)
+    root.setAttribute('data-theme-dark', p.isDark ? 'true' : 'false')
+
+    setPersonaState(p)
+
+    // Persist to localStorage
+    localStorage.setItem(PERSONA_STORAGE_KEY, p.id)
+  }, [])
+
+  // Set persona by ID
+  const setPersona = useCallback((id: string) => {
+    const newPersona = getThemeById(id)
+    if (newPersona) {
+      applyPersona(newPersona)
+    }
+  }, [applyPersona])
+
+  // Load persona from localStorage on mount
+  useEffect(() => {
+    const savedPersonaId = localStorage.getItem(PERSONA_STORAGE_KEY)
+    if (savedPersonaId) {
+      const savedPersona = getThemeById(savedPersonaId)
+      if (savedPersona) {
+        applyPersona(savedPersona)
+        return
+      }
+    }
+    // Apply default theme on first load
+    applyPersona(getDefaultTheme())
+  }, [applyPersona])
+
+  // Apply legacy CSS variables to document (for image-extracted themes)
   const applyTheme = useCallback((palette: ThemePalette) => {
     const root = document.documentElement
 
@@ -60,7 +124,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Apply direct color values
     if (palette.primary) {
       root.style.setProperty('--theme-primary', palette.primary)
-      // Also set some commonly used Tailwind-compatible variables
       root.style.setProperty('--primary', palette.primary)
     }
     if (palette.secondary) {
@@ -80,7 +143,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.setAttribute('data-theme', 'custom')
 
     // Apply visible theme styles directly to key elements
-    // This makes the theme immediately visible
     const styleId = 'custom-theme-styles'
     let styleEl = document.getElementById(styleId) as HTMLStyleElement
     if (!styleEl) {
@@ -91,7 +153,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     const primaryColor = palette.primary || '#3b82f6'
     const secondaryColor = palette.secondary || palette.primary || '#6366f1'
-    const accentColor = palette.accent || '#f59e0b'
 
     styleEl.textContent = `
       /* Applied theme colors */
@@ -180,6 +241,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     <ThemeContext.Provider value={{
       theme,
       setTheme,
+      persona,
+      setPersona,
+      personas: THEME_PRESETS,
       applyTheme,
       clearTheme,
       isLoading,

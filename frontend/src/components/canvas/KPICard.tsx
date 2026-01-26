@@ -1,4 +1,5 @@
 import { KPICardContent } from '@/types/canvas'
+import { useTheme } from '@/contexts/ThemeContext'
 import {
   TrendingUp,
   TrendingDown,
@@ -16,9 +17,11 @@ import {
 
 interface KPICardProps {
   content: KPICardContent
+  itemId?: string
 }
 
-export function KPICard({ content }: KPICardProps) {
+export function KPICard({ content, itemId }: KPICardProps) {
+  const { persona } = useTheme()
   const {
     name,
     formattedValue,
@@ -58,32 +61,6 @@ export function KPICard({ content }: KPICardProps) {
     return BarChart3
   }
 
-  // Get value color based on value type
-  const getValueColor = () => {
-    const value = formattedValue.toString()
-
-    if (value.includes('%')) {
-      return 'text-indigo-600'
-    }
-    if (value.includes('$') || value.includes('€') || value.includes('£')) {
-      return 'text-emerald-600'
-    }
-    return 'text-violet-600'
-  }
-
-  // Get icon background color (subtle, matching value color)
-  const getIconBgColor = () => {
-    const value = formattedValue.toString()
-
-    if (value.includes('%')) {
-      return 'bg-indigo-100 text-indigo-600'
-    }
-    if (value.includes('$') || value.includes('€') || value.includes('£')) {
-      return 'bg-emerald-100 text-emerald-600'
-    }
-    return 'bg-violet-100 text-violet-600'
-  }
-
   const getTrendIcon = () => {
     if (!trendDirection) return null
 
@@ -99,53 +76,92 @@ export function KPICard({ content }: KPICardProps) {
     }
   }
 
-  const getTrendColor = () => {
-    if (!trendDirection) return 'text-muted-foreground'
+  // Trend colors - semantic (green=good, red=bad) but adjusted for dark themes
+  const getTrendStyles = () => {
+    if (!trendDirection) return { color: persona.textMuted, bg: persona.isDark ? '#374151' : '#f1f5f9' }
 
     switch (trendDirection) {
       case 'up':
-        return 'text-emerald-600'
+        return {
+          color: persona.isDark ? '#34d399' : '#059669',
+          bg: persona.isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5'
+        }
       case 'down':
-        return 'text-rose-600'
+        return {
+          color: persona.isDark ? '#fb7185' : '#dc2626',
+          bg: persona.isDark ? 'rgba(244, 63, 94, 0.15)' : '#fef2f2'
+        }
       case 'flat':
-        return 'text-slate-500'
+        return {
+          color: persona.textMuted,
+          bg: persona.isDark ? '#374151' : '#f1f5f9'
+        }
       default:
-        return 'text-slate-500'
-    }
-  }
-
-  const getTrendBgColor = () => {
-    if (!trendDirection) return 'bg-slate-100'
-
-    switch (trendDirection) {
-      case 'up':
-        return 'bg-emerald-50'
-      case 'down':
-        return 'bg-rose-50'
-      case 'flat':
-        return 'bg-slate-100'
-      default:
-        return 'bg-slate-100'
+        return { color: persona.textMuted, bg: persona.isDark ? '#374151' : '#f1f5f9' }
     }
   }
 
   const MetricIcon = getMetricIcon()
+  const trendStyles = getTrendStyles()
+
+  // Icon background - subtle tint of primary color
+  const iconBgColor = persona.isDark
+    ? `${persona.primary}25`
+    : `${persona.primary}15`
+
+  // Serialize config for annotation system - include all KPI properties
+  const felixConfig = itemId ? JSON.stringify({
+    name,
+    value: content.value,
+    formattedValue,
+    aggregation: content.aggregation,
+    trend,
+    trendDirection,
+    comparisonLabel,
+    column: content.column
+  }) : undefined
 
   return (
-    <div className="h-full flex flex-col bg-card rounded-xl border border-border/50 p-5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),0_4px_12px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08),0_8px_20px_-4px_rgba(0,0,0,0.06)] transition-all duration-200">
+    <div
+      className="h-full flex flex-col rounded-xl p-5 transition-all duration-200"
+      data-felix-id={itemId}
+      data-felix-type="kpi"
+      data-felix-config={felixConfig}
+      style={{
+        backgroundColor: persona.cardBackground,
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: persona.cardBorder,
+        boxShadow: persona.isDark
+          ? '0 2px 8px -2px rgba(0,0,0,0.3), 0 4px 12px -4px rgba(0,0,0,0.2)'
+          : '0 2px 8px -2px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.05)'
+      }}
+    >
       {/* Header with icon */}
       <div className="flex items-start justify-between mb-3">
-        <span className="text-sm font-medium text-muted-foreground tracking-wide">
+        <span
+          className="text-sm font-medium tracking-wide"
+          style={{ color: persona.textSecondary }}
+        >
           {name}
         </span>
-        <div className={`p-2 rounded-lg ${getIconBgColor()}`}>
+        <div
+          className="p-2 rounded-lg"
+          style={{
+            backgroundColor: iconBgColor,
+            color: persona.primary
+          }}
+        >
           <MetricIcon className="h-4 w-4" />
         </div>
       </div>
 
       {/* Value */}
       <div className="flex-1 flex items-center">
-        <span className={`text-4xl font-bold tracking-tight ${getValueColor()}`}>
+        <span
+          className="text-4xl font-bold tracking-tight"
+          style={{ color: persona.kpiValueColor }}
+        >
           {formattedValue}
         </span>
       </div>
@@ -154,7 +170,11 @@ export function KPICard({ content }: KPICardProps) {
       {trend !== undefined && trend !== null && (
         <div className="mt-4 flex items-center gap-2">
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${getTrendColor()} ${getTrendBgColor()}`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+            style={{
+              color: trendStyles.color,
+              backgroundColor: trendStyles.bg
+            }}
           >
             {getTrendIcon()}
             <span>
@@ -163,7 +183,10 @@ export function KPICard({ content }: KPICardProps) {
             </span>
           </span>
           {comparisonLabel && (
-            <span className="text-xs text-muted-foreground">
+            <span
+              className="text-xs"
+              style={{ color: persona.textMuted }}
+            >
               {comparisonLabel}
             </span>
           )}

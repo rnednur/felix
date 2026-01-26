@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
-import { BarChart3, Table2, Lightbulb, Gauge, FileText } from "lucide-react"
+import { BarChart3, Table2, Lightbulb, Gauge, FileText, MapPin } from "lucide-react"
 
-type BadgeVariant = "kpi" | "chart" | "table" | "insight" | "text"
+type BadgeVariant = "kpi" | "chart" | "table" | "insight" | "text" | "map"
 
 interface CardBadgeProps {
   variant: BadgeVariant
@@ -39,6 +39,12 @@ const variantConfig: Record<BadgeVariant, { icon: typeof BarChart3; bg: string; 
     bg: "bg-emerald-100",
     text: "text-emerald-700",
     defaultLabel: "Text"
+  },
+  map: {
+    icon: MapPin,
+    bg: "bg-teal-100",
+    text: "text-teal-700",
+    defaultLabel: "Map"
   }
 }
 

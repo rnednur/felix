@@ -6,9 +6,10 @@ import { CardBadge } from '@/components/ui/card-badge'
 interface InsightNoteItemProps {
   content: InsightNoteContent
   variant?: 'default' | 'dashboard'
+  itemId?: string
 }
 
-export function InsightNoteItem({ content, variant = 'default' }: InsightNoteItemProps) {
+export function InsightNoteItem({ content, variant = 'default', itemId }: InsightNoteItemProps) {
   const { content: markdownContent, aiGenerated, tags } = content
 
   // Check if this is a query header
@@ -17,9 +18,23 @@ export function InsightNoteItem({ content, variant = 'default' }: InsightNoteIte
   // Use dashboard variant for cleaner look
   const useDashboardStyle = variant === 'dashboard' || tags?.includes('key-insights')
 
+  // Serialize config for annotation system - include content for LLM to modify
+  const felixConfig = itemId ? JSON.stringify({
+    content: markdownContent,  // Include actual content for LLM modifications
+    aiGenerated,
+    tags,
+    isHeader: isQueryHeader,
+    variant: useDashboardStyle ? 'dashboard' : 'default'
+  }) : undefined
+
   if (isQueryHeader) {
     return (
-      <div className="h-full flex flex-col overflow-hidden bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl shadow-sm">
+      <div
+        className="h-full flex flex-col overflow-hidden bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl shadow-sm"
+        data-felix-id={itemId}
+        data-felix-type="insight"
+        data-felix-config={felixConfig}
+      >
         <div className="flex-1 overflow-auto p-6">
           <div className="prose prose-lg prose-indigo max-w-none">
             <ReactMarkdown>{markdownContent}</ReactMarkdown>
@@ -32,7 +47,12 @@ export function InsightNoteItem({ content, variant = 'default' }: InsightNoteIte
   if (useDashboardStyle) {
     // Clean dashboard-style insights panel (like Bricks "Key Insights")
     return (
-      <div className="h-full flex flex-col bg-card rounded-xl border border-border/50 overflow-hidden shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),0_4px_12px_-4px_rgba(0,0,0,0.05)]">
+      <div
+        className="h-full flex flex-col bg-card rounded-xl border border-border/50 overflow-hidden shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),0_4px_12px_-4px_rgba(0,0,0,0.05)]"
+        data-felix-id={itemId}
+        data-felix-type="insight"
+        data-felix-config={felixConfig}
+      >
         {/* Header */}
         <div className="px-5 py-4 flex items-center gap-3 border-b border-border/30">
           <CardBadge variant="insight" />
@@ -78,7 +98,12 @@ export function InsightNoteItem({ content, variant = 'default' }: InsightNoteIte
 
   // Default note style with accent border
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-card rounded-xl border-l-4 border-l-amber-400 border border-border/50 shadow-sm">
+    <div
+      className="h-full flex flex-col overflow-hidden bg-card rounded-xl border-l-4 border-l-amber-400 border border-border/50 shadow-sm"
+      data-felix-id={itemId}
+      data-felix-type="insight"
+      data-felix-config={felixConfig}
+    >
       {/* Header */}
       <div className="bg-amber-50/50 px-4 py-3 border-b border-amber-100 flex items-center gap-2">
         <Lightbulb className="h-4 w-4 text-amber-600" />

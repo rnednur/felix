@@ -81,14 +81,22 @@ export function VegaChart({ spec, onExport }: Props) {
     link.click()
   }
 
-  // Generate a key based on theme to force re-render when theme changes
-  const themeKey = theme ? `themed-${theme.primary}` : 'default'
+  // Generate a key based on theme AND spec to force re-render when either changes
+  // Use JSON.stringify for spec to detect content changes
+  const specHash = useMemo(() => {
+    try {
+      return JSON.stringify(spec).slice(0, 200) // Use first 200 chars as a simple hash
+    } catch {
+      return 'spec'
+    }
+  }, [spec])
+  const chartKey = theme ? `themed-${theme.primary}-${specHash}` : `default-${specHash}`
 
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex-1 min-h-0">
         <VegaEmbed
-          key={themeKey}
+          key={chartKey}
           spec={themedSpec}
           options={{
             actions: false,

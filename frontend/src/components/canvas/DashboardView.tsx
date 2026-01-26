@@ -94,7 +94,7 @@ export function DashboardView({ queryResult, charts }: DashboardViewProps) {
                   <h4 className="font-semibold mb-4 capitalize">
                     {chart.title || `${chart.type} Chart`}
                   </h4>
-                  <VegaChart spec={chart.spec} onExport={() => {}} />
+                  <VegaChart spec={chart.spec} />
                 </div>
               ))}
             </div>

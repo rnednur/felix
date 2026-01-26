@@ -66,6 +66,7 @@ from app.schemas.dashboard import (
     LayoutItem,
     LayoutPosition,
     DashboardLayout,
+    MapResult,
 )
 from app.schemas.workspace import CanvasItemCreate
 import uuid
@@ -102,6 +103,9 @@ class DashboardLayoutService:
     # Summary table dimensions
     SUMMARY_TABLE_HEIGHT = 400
 
+    # Map dimensions
+    MAP_HEIGHT = 500
+
     def __init__(self):
         self.current_y = self.PADDING
 
@@ -110,7 +114,8 @@ class DashboardLayoutService:
         kpis: List[KPIResult],
         charts: List[ChartResult],
         summary_table: Optional[SummaryTableResult],
-        insights: List[InsightResult]
+        insights: List[InsightResult],
+        maps: Optional[List[MapResult]] = None
     ) -> List[CanvasItemCreate]:
         """
         Calculate positions for all dashboard items and return CanvasItemCreate objects.
@@ -118,14 +123,16 @@ class DashboardLayoutService:
         Layout order (top to bottom):
         1. KPIs in a row
         2. Charts in 2-column grid
-        3. Summary table (full width)
-        4. All insights at the bottom
+        3. Maps (full width or 2-column if multiple)
+        4. Summary table (full width)
+        5. All insights at the bottom
 
         Args:
             kpis: List of KPI results
             charts: List of chart results
             summary_table: Optional summary table result
             insights: List of insight results
+            maps: Optional list of map results
 
         Returns:
             List of CanvasItemCreate objects ready for database insertion
@@ -143,12 +150,17 @@ class DashboardLayoutService:
             chart_items = self._position_charts(charts, {})  # No inline insights
             canvas_items.extend(chart_items)
 
-        # 3. Position summary table (full width)
+        # 3. Position maps (after charts, before summary table)
+        if maps:
+            map_items = self._position_maps(maps)
+            canvas_items.extend(map_items)
+
+        # 4. Position summary table (full width)
         if summary_table:
             table_item = self._position_summary_table(summary_table)
             canvas_items.append(table_item)
 
-        # 4. Position ALL insights at the bottom as a summary section
+        # 5. Position ALL insights at the bottom as a summary section
         if insights:
             insight_items = self._position_remaining_insights(insights)
             canvas_items.extend(insight_items)
@@ -245,6 +257,53 @@ class DashboardLayoutService:
 
         return items
 
+    def _position_maps(self, maps: List[MapResult]) -> List[CanvasItemCreate]:
+        """Position maps in a grid layout (full width for 1, 2-column for multiple)."""
+        items = []
+
+        # Calculate map width based on count
+        available_width = self.TOTAL_WIDTH - (2 * self.PADDING)
+        if len(maps) == 1:
+            map_width = available_width
+            cols = 1
+        else:
+            map_width = (available_width - self.GAP) // 2
+            cols = 2
+
+        for i, map_result in enumerate(maps):
+            col = i % cols
+            row = i // cols
+
+            x = self.PADDING + (col * (map_width + self.GAP))
+            y = self.current_y + (row * (self.MAP_HEIGHT + self.GAP))
+
+            # Map content for frontend MapItem component
+            content = make_json_serializable({
+                "title": map_result.title,
+                "data": map_result.data[:500] if map_result.data else [],  # Limit data points
+                "spatialColumns": map_result.spatial_columns,
+                "config": map_result.config,
+                "datasetId": map_result.dataset_id,
+                "rowCount": map_result.row_count,
+            })
+
+            item = CanvasItemCreate(
+                type="map",
+                x=x,
+                y=y,
+                width=map_width,
+                height=self.MAP_HEIGHT,
+                z_index=1,
+                content=content
+            )
+            items.append(item)
+
+        # Update current Y position
+        num_rows = (len(maps) + cols - 1) // cols
+        self.current_y += num_rows * (self.MAP_HEIGHT + self.GAP)
+
+        return items
+
     def _position_summary_table(self, table: SummaryTableResult) -> CanvasItemCreate:
         """Position summary table at full width."""
         table_width = self.TOTAL_WIDTH - (2 * self.PADDING)
@@ -323,7 +382,8 @@ def create_dashboard_layout(
     kpis: List[KPIResult],
     charts: List[ChartResult],
     summary_table: Optional[SummaryTableResult],
-    insights: List[InsightResult]
+    insights: List[InsightResult],
+    maps: Optional[List[MapResult]] = None
 ) -> Tuple[List[CanvasItemCreate], int]:
     """
     Convenience function to create dashboard layout.
@@ -332,5 +392,5 @@ def create_dashboard_layout(
         Tuple of (canvas_items, total_height)
     """
     service = DashboardLayoutService()
-    items = service.calculate_layout(kpis, charts, summary_table, insights)
+    items = service.calculate_layout(kpis, charts, summary_table, insights, maps)
     return items, service.calculate_total_height()

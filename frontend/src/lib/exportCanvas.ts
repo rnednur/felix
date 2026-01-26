@@ -2,8 +2,10 @@
  * Canvas Export Utilities
  *
  * Provides functions to export dashboard canvas to PNG and PDF formats.
+ * Includes special handling for Kepler.gl maps which use WebGL rendering.
  */
 import html2canvas from 'html2canvas'
+import { captureAllKeplerMaps, replaceMapWithStatic } from './keplerExport'
 
 export interface ExportOptions {
   scale?: number
@@ -14,6 +16,7 @@ export interface ExportOptions {
 
 /**
  * Capture a DOM element as a canvas using html2canvas
+ * Includes special handling for Kepler.gl maps which use WebGL rendering.
  */
 export async function captureElement(
   element: HTMLElement,
@@ -24,27 +27,47 @@ export async function captureElement(
   // Wait for any pending renders
   await new Promise(resolve => setTimeout(resolve, 100))
 
-  const canvas = await html2canvas(element, {
-    scale,
-    backgroundColor,
-    useCORS: true,
-    allowTaint: true,
-    logging: false,
-    // Ensure SVGs are captured properly
-    onclone: (clonedDoc) => {
-      // Force SVG elements to have explicit dimensions
-      const svgs = clonedDoc.querySelectorAll('svg')
-      svgs.forEach(svg => {
-        const bbox = svg.getBBox?.()
-        if (bbox) {
-          svg.setAttribute('width', String(bbox.width || 400))
-          svg.setAttribute('height', String(bbox.height || 300))
-        }
-      })
-    }
-  })
+  // Step 1: Capture all Kepler.gl maps as static images
+  // This is needed because html2canvas cannot capture WebGL content
+  const mapSnapshots = await captureAllKeplerMaps('[data-export-canvas]')
 
-  return canvas
+  // Step 2: Temporarily replace map canvases with static images
+  let restoreMaps: (() => void) | null = null
+  if (mapSnapshots.size > 0) {
+    restoreMaps = replaceMapWithStatic(mapSnapshots)
+    // Give the DOM a moment to update
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+
+  try {
+    // Step 3: Capture the element with html2canvas
+    const canvas = await html2canvas(element, {
+      scale,
+      backgroundColor,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      // Ensure SVGs are captured properly
+      onclone: (clonedDoc) => {
+        // Force SVG elements to have explicit dimensions
+        const svgs = clonedDoc.querySelectorAll('svg')
+        svgs.forEach(svg => {
+          const bbox = svg.getBBox?.()
+          if (bbox) {
+            svg.setAttribute('width', String(bbox.width || 400))
+            svg.setAttribute('height', String(bbox.height || 300))
+          }
+        })
+      }
+    })
+
+    return canvas
+  } finally {
+    // Step 4: Restore original Kepler maps
+    if (restoreMaps) {
+      restoreMaps()
+    }
+  }
 }
 
 /**

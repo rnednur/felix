@@ -185,6 +185,36 @@
         "auto dashboard", "visualize all", "complete analysis", "full report",
         "executive summary", "data overview", "generate dashboard"
       ]
+    },
+    {
+      "name": "dashboard_editor_agent",
+      "display_name": "Dashboard Editor Agent",
+      "description": "Interprets visual annotations and generates dashboard modifications",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "interpret_annotations",
+        "generate_edits",
+        "modify_charts",
+        "modify_kpis",
+        "modify_insights",
+        "element_removal"
+      ],
+      "libraries": [],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1000
+      },
+      "prompts": {
+        "default": "You are a dashboard editor. Interpret user feedback and generate specific edit instructions."
+      },
+      "intent_keywords": [
+        "change", "modify", "update", "edit", "annotate",
+        "make", "convert", "transform", "style",
+        "color", "font", "size", "bigger", "smaller",
+        "remove", "delete", "hide", "chart type"
+      ]
     }
   ]
 }

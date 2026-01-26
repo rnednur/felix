@@ -58,6 +58,20 @@ export interface KPICardContent {
   sparklineData?: number[]
 }
 
+export interface MapContent {
+  title?: string
+  data: any[]
+  spatialColumns: {
+    lat: string
+    lng: string
+  }
+  config?: any  // Kepler.gl config
+  sourceQueryId?: string
+  datasetId?: string
+  // For export - captured static image
+  staticImageUrl?: string
+}
+
 export type CanvasItemContent =
   | QueryResultContent
   | ChartContent
@@ -65,6 +79,7 @@ export type CanvasItemContent =
   | CodeBlockContent
   | MLModelContent
   | KPICardContent
+  | MapContent
 
 export type CanvasItemType =
   | 'query-result'
@@ -73,6 +88,7 @@ export type CanvasItemType =
   | 'code-block'
   | 'ml-model'
   | 'kpi-card'
+  | 'map'
 
 export interface CanvasItem {
   id: string

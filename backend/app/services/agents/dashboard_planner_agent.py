@@ -21,6 +21,7 @@ from app.services.duckdb_service import DuckDBService
 from app.services.storage_service import StorageService
 from app.services.data_scouting_service import DataScoutingService
 from app.services.dashboard_layout_service import create_dashboard_layout
+from app.services.spatial_service import SpatialService
 
 from app.schemas.agent import AgentConfig, AgentRequest, AgentResponse, AgentContext
 from app.schemas.dashboard import (
@@ -42,6 +43,7 @@ from app.schemas.dashboard import (
     SummaryTableDefinition,
     SummaryTableResult,
     InsightResult,
+    MapResult,
 )
 
 
@@ -102,6 +104,7 @@ class DashboardPlannerAgent(BaseAgent):
         self.duckdb_service = DuckDBService()
         self.storage_service = StorageService()
         self.scouting_service = DataScoutingService()
+        self.spatial_service = SpatialService()
 
     def can_handle(self, request: AgentRequest) -> float:
         """Calculate confidence for handling dashboard generation requests."""
@@ -242,12 +245,31 @@ class DashboardPlannerAgent(BaseAgent):
                     )
                 )
 
-            # ========== Phase 4: Summary Table ==========
+            # ========== Phase 4: Map Generation (auto-detect spatial data) ==========
+            maps: List[MapResult] = []
+            spatial_info = await self._detect_spatial_data(dataset_id)
+            if spatial_info:  # Returns None if no spatial data found
+                yield DashboardProgress(
+                    phase=DashboardPhase.CHARTS,  # Reuse charts phase
+                    progress=68,
+                    message="Generating map visualization..."
+                )
+
+                map_result = await self._generate_map(dataset_id, spatial_info, data_profile)
+                if map_result:
+                    maps.append(map_result)
+                    yield DashboardProgress(
+                        phase=DashboardPhase.CHARTS,
+                        progress=70,
+                        message="Map visualization added"
+                    )
+
+            # ========== Phase 5: Summary Table ==========
             summary_table: Optional[SummaryTableResult] = None
             if options.include_summary_table and data_profile.categorical_columns:
                 yield DashboardProgress(
                     phase=DashboardPhase.SUMMARY,
-                    progress=70,
+                    progress=72,
                     message="Creating summary table..."
                 )
 
@@ -294,6 +316,7 @@ class DashboardPlannerAgent(BaseAgent):
                 charts=charts,
                 summary_table=summary_table,
                 insights=insights,
+                maps=maps,
                 prompt=prompt
             )
 
@@ -1067,6 +1090,86 @@ Return ONLY the JSON array."""
 
         return insights
 
+    # ============== Map Generation ==============
+
+    async def _detect_spatial_data(self, dataset_id: str) -> Optional[Dict[str, Any]]:
+        """Detect if dataset has spatial columns (lat/lng)."""
+        try:
+            # Load sample data for spatial detection
+            query = "SELECT * FROM dataset LIMIT 1000"
+            sample_df = self.duckdb_service.execute_query(query, dataset_id=dataset_id)
+            sample_data = sample_df.to_dict('records')
+
+            if not sample_data:
+                return None
+
+            # Use spatial service to detect columns
+            spatial_info = self.spatial_service.detect_spatial_columns(sample_data)
+
+            if spatial_info and spatial_info.get('type') == 'coordinates':
+                # Generate Kepler.gl config
+                config = self.spatial_service.generate_kepler_config(
+                    sample_data,
+                    spatial_info['columns']['lat'],
+                    spatial_info['columns']['lng']
+                )
+                spatial_info['default_config'] = config
+
+                logger.info(f"Detected spatial data in dataset {dataset_id}: {spatial_info['columns']}")
+                return spatial_info
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to detect spatial data: {e}")
+            return None
+
+    async def _generate_map(
+        self,
+        dataset_id: str,
+        spatial_info: Dict[str, Any],
+        profile: DataProfile
+    ) -> Optional[MapResult]:
+        """Generate a map visualization for spatial data."""
+        try:
+            # Get map data (limited for performance)
+            lat_col = spatial_info['columns']['lat']
+            lng_col = spatial_info['columns']['lng']
+
+            query = f'''
+                SELECT *
+                FROM dataset
+                WHERE "{lat_col}" IS NOT NULL
+                  AND "{lng_col}" IS NOT NULL
+                LIMIT 5000
+            '''
+
+            data_df = self.duckdb_service.execute_query(query, dataset_id=dataset_id)
+            data = data_df.to_dict('records')
+
+            if not data:
+                return None
+
+            # Create map result
+            map_result = MapResult(
+                id="map_1",
+                title="Geographic Distribution",
+                data=data,
+                spatial_columns={
+                    'lat': lat_col,
+                    'lng': lng_col
+                },
+                config=spatial_info.get('default_config'),
+                dataset_id=dataset_id,
+                row_count=len(data)
+            )
+
+            return map_result
+
+        except Exception as e:
+            logger.warning(f"Failed to generate map: {e}")
+            return None
+
     # ============== Create Workspace ==============
 
     async def _create_workspace(
@@ -1077,7 +1180,8 @@ Return ONLY the JSON array."""
         charts: List[ChartResult],
         summary_table: Optional[SummaryTableResult],
         insights: List[InsightResult],
-        prompt: Optional[str]
+        maps: Optional[List[MapResult]] = None,
+        prompt: Optional[str] = None
     ) -> str:
         """Create workspace with all canvas items."""
         from app.core.database import get_db
@@ -1101,7 +1205,8 @@ Return ONLY the JSON array."""
                 kpis=kpis,
                 charts=charts,
                 summary_table=summary_table,
-                insights=insights
+                insights=insights,
+                maps=maps
             )
 
             # Create workspace
