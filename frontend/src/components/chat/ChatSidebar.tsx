@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Database, Code2, Brain, Bot, Sparkles, ChevronRight, Check, AlertCircle, Loader2 } from 'lucide-react'
+import { Send, Database, Code2, Brain, Bot, Sparkles, ChevronRight, Check, AlertCircle, Loader2, Play } from 'lucide-react'
 import { QuickActions } from './QuickActions'
 import { cn } from '@/lib/utils'
+
+const SqlEditor = lazy(() => import('@/components/editor/SqlEditor').then(m => ({ default: m.SqlEditor })))
 
 interface Message {
   role: 'user' | 'assistant'
@@ -68,6 +70,8 @@ export function ChatSidebar({
   onInfographicGenerationMethodChange
 }: ChatSidebarProps) {
   const [input, setInput] = useState('')
+  const [showDirectSql, setShowDirectSql] = useState(false)
+  const [sqlEditorValue, setSqlEditorValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -92,6 +96,12 @@ export function ChatSidebar({
     if (input.trim() && !isLoading) {
       onQuerySubmit(input, analysisMode)
       setInput('')
+    }
+  }
+
+  const handleDirectSqlRun = () => {
+    if (sqlEditorValue.trim() && !isLoading) {
+      onQuerySubmit(sqlEditorValue.trim(), 'sql')
     }
   }
 
@@ -345,6 +355,49 @@ export function ChatSidebar({
             <Code2 className="h-3.5 w-3.5 text-blue-500" />
             Python mode for ML models and advanced analysis
           </p>
+        )}
+        {analysisMode === 'sql' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Database className="h-3.5 w-3.5 text-emerald-500" />
+                {showDirectSql ? 'Write SQL directly — Cmd+Enter to run' : 'Describe what you want in plain English'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowDirectSql(v => !v)}
+                className="text-xs text-emerald-600 hover:text-emerald-500 font-medium underline underline-offset-2"
+              >
+                {showDirectSql ? 'Switch to NL' : 'Write SQL'}
+              </button>
+            </div>
+            {showDirectSql && (
+              <div className="space-y-1.5">
+                <Suspense fallback={
+                  <div className="h-32 bg-gray-900 rounded-lg border border-gray-700 flex items-center justify-center">
+                    <span className="text-xs text-gray-400">Loading editor...</span>
+                  </div>
+                }>
+                  <SqlEditor
+                    value={sqlEditorValue}
+                    onChange={setSqlEditorValue}
+                    onRun={handleDirectSqlRun}
+                    height="160px"
+                    showControls
+                  />
+                </Suspense>
+                <button
+                  type="button"
+                  onClick={handleDirectSqlRun}
+                  disabled={!sqlEditorValue.trim() || isLoading}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  Run SQL
+                </button>
+              </div>
+            )}
+          </div>
         )}
         {analysisMode === 'deep-research' && (
           <div className="space-y-3">

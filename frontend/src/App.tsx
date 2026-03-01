@@ -10,6 +10,8 @@ import DatasetGroupDetail from './pages/DatasetGroupDetail'
 import WorkspaceDetail from './pages/WorkspaceDetail'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 
 function App() {
   return (
@@ -18,10 +20,13 @@ function App() {
         <AuthProvider>
           <FilterProvider>
             <ThemeProvider>
+          <div className="min-h-screen bg-background text-foreground">
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Protected routes */}
             <Route path="/" element={
@@ -50,6 +55,7 @@ function App() {
               </ProtectedRoute>
             } />
           </Routes>
+          </div>
             </ThemeProvider>
           </FilterProvider>
         </AuthProvider>

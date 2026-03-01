@@ -347,6 +347,9 @@ async def get_spatial_info(
             if spatial_info["type"] == "coordinates":
                 config = spatial_service.generate_kepler_config(spatial_info, sample)
                 spatial_info["default_config"] = config
+            elif spatial_info["type"] == "wkt":
+                # WKT geometry — no extra config needed, frontend parses geometries directly
+                spatial_info["default_config"] = {}
             else:
                 # For address/geographic data, indicate geocoding needed
                 spatial_info["default_config"] = {}

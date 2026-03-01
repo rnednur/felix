@@ -34,7 +34,7 @@ export default function Home() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Felix
             </h1>
-            <p className="mt-1 text-gray-600">
+            <p className="mt-1 text-muted-foreground">
               Upload your data and start asking questions in natural language
             </p>
           </div>

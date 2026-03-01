@@ -8,6 +8,7 @@ import { QueryResultItem } from './QueryResultItem'
 import { MapItem } from './MapItem'
 import { CascadingGlobalFilterBar } from '@/components/filters/CascadingGlobalFilterBar'
 import { CreateZone, DashboardContext, KPIContext, ChartContext, DashboardEdit } from '@/components/annotation'
+import { useFilters } from '@/contexts/FilterContext'
 
 /**
  * Get CSS class for grid column span based on display size
@@ -104,6 +105,9 @@ export function DashboardGridView({
 
   const { kpis, charts, insights, tables, headers, maps } = categorizedItems
 
+  // Crossfilter state
+  const { crossfilterSelection, clearCrossfilterSelection } = useFilters()
+
   // Build dashboard context for CreateZone
   const dashboardContext = useMemo((): DashboardContext => {
     // Extract KPI context
@@ -138,8 +142,8 @@ export function DashboardGridView({
     if (tables.length > 0) {
       const tableContent = tables[0].content as QueryResultContent
       columns = tableContent.columns || []
-      // Pass up to 200 rows to support maps and aggregations
-      sampleData = (tableContent.rows || []).slice(0, 200)
+      // Pass up to 100000 rows to support geospatial maps and aggregations
+      sampleData = (tableContent.rows || []).slice(0, 100000)
     } else if (charts.length > 0) {
       // Try to get data from charts - charts often have aggregated data
       const chartWithData = charts.find(c => (c.content as ChartContent).data?.length)
@@ -147,8 +151,8 @@ export function DashboardGridView({
         const chartData = (chartWithData.content as ChartContent).data || []
         if (chartData.length > 0) {
           columns = Object.keys(chartData[0])
-          // Pass all chart data (typically already aggregated)
-          sampleData = chartData.slice(0, 200)
+          // Pass up to 100000 rows for geospatial maps
+          sampleData = chartData.slice(0, 100000)
         }
       }
     }
@@ -192,6 +196,25 @@ export function DashboardGridView({
           filterConfig={filterConfig}
           onConfigureClick={onConfigureFilters}
         />
+      )}
+
+      {/* Crossfilter active banner */}
+      {crossfilterSelection && (
+        <div className="flex items-center justify-between px-4 py-2 bg-indigo-50 border-b border-indigo-100">
+          <div className="flex items-center gap-2 text-sm text-indigo-700">
+            <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            <span>
+              Crossfilter active: <strong>{crossfilterSelection.field}</strong> = <strong>{String(crossfilterSelection.value)}</strong>
+              <span className="ml-1 text-indigo-500 text-xs">(double-click a chart to clear)</span>
+            </span>
+          </div>
+          <button
+            onClick={clearCrossfilterSelection}
+            className="text-xs px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors font-medium"
+          >
+            Clear
+          </button>
+        </div>
       )}
 
       <div className="flex-1 overflow-auto">

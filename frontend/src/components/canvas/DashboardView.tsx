@@ -1,4 +1,7 @@
+import { lazy, Suspense } from 'react'
 import { VegaChart } from '@/components/visualization/VegaChart'
+
+const SqlEditor = lazy(() => import('@/components/editor/SqlEditor').then(m => ({ default: m.SqlEditor })))
 
 interface DashboardViewProps {
   queryResult?: {
@@ -32,14 +35,20 @@ export function DashboardView({ queryResult, charts }: DashboardViewProps) {
       <div className="p-6 space-y-6">
         {/* Query Info */}
         {queryResult.sql && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-700">Generated SQL</h3>
-              <span className="text-xs text-gray-500">
+          <div className="border border-gray-700 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-800">
+              <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wide">Generated SQL</h3>
+              <span className="text-xs text-gray-400">
                 {queryResult.execution_time_ms}ms • {queryResult.total_rows?.toLocaleString()} rows
               </span>
             </div>
-            <pre className="text-xs text-gray-600 overflow-x-auto">{queryResult.sql}</pre>
+            <Suspense fallback={
+              <div className="bg-gray-900 p-3">
+                <pre className="text-xs text-gray-300 font-mono overflow-x-auto">{queryResult.sql}</pre>
+              </div>
+            }>
+              <SqlEditor value={queryResult.sql} readOnly height="140px" />
+            </Suspense>
           </div>
         )}
 

@@ -1,5 +1,8 @@
+import { lazy, Suspense } from 'react'
 import { CodeBlockContent } from '@/types/canvas'
 import { Code } from 'lucide-react'
+
+const SqlEditor = lazy(() => import('@/components/editor/SqlEditor').then(m => ({ default: m.SqlEditor })))
 
 interface CodeBlockItemProps {
   content: CodeBlockContent
@@ -29,10 +32,22 @@ export function CodeBlockItem({ content, itemId }: CodeBlockItemProps) {
       </div>
 
       {/* Code */}
-      <div className="flex-1 overflow-auto p-4 bg-gray-900">
-        <pre className="text-sm text-gray-100 font-mono">
-          <code>{code}</code>
-        </pre>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {language === 'sql' ? (
+          <Suspense fallback={
+            <div className="h-full bg-gray-900 p-4">
+              <pre className="text-sm text-gray-100 font-mono">{code}</pre>
+            </div>
+          }>
+            <SqlEditor value={code || ''} readOnly height="100%" />
+          </Suspense>
+        ) : (
+          <div className="overflow-auto h-full p-4 bg-gray-900">
+            <pre className="text-sm text-gray-100 font-mono">
+              <code>{code}</code>
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   )

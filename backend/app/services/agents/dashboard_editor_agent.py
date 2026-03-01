@@ -1,12 +1,107 @@
 """
 Dashboard Editor Agent - interprets annotations and generates dashboard modifications
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import json
 from app.services.agents.base_agent import BaseAgent
 from app.schemas.agent import AgentConfig, AgentRequest, AgentResponse, AgentContext
 from app.schemas.annotation import AnnotationRequest, DashboardEdit, IntentAnalysis, ContextCreateRequest
 from app.services.agents.llm_service import LLMService
+from app.services.duckdb_service import DuckDBService
+
+
+# US State abbreviation to full name mapping for bridge transforms
+US_STATE_ABBR_TO_NAME = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+    "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+    "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho",
+    "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+    "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York",
+    "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah",
+    "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
+    "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
+    "PR": "Puerto Rico", "VI": "Virgin Islands", "GU": "Guam",
+    "AS": "American Samoa", "MP": "Northern Mariana Islands"
+}
+
+# Canadian province abbreviation to full name mapping
+CA_PROVINCE_ABBR_TO_NAME = {
+    "AB": "Alberta", "BC": "British Columbia", "MB": "Manitoba",
+    "NB": "New Brunswick", "NL": "Newfoundland and Labrador",
+    "NS": "Nova Scotia", "NT": "Northwest Territories", "NU": "Nunavut",
+    "ON": "Ontario", "PE": "Prince Edward Island", "QC": "Quebec",
+    "SK": "Saskatchewan", "YT": "Yukon"
+}
+
+# Country abbreviation/code to full name mapping (ISO 3166-1 alpha-2/3)
+COUNTRY_CODE_TO_NAME = {
+    "US": "United States of America", "USA": "United States of America",
+    "UK": "United Kingdom", "GB": "United Kingdom", "GBR": "United Kingdom",
+    "CA": "Canada", "CAN": "Canada",
+    "DE": "Germany", "DEU": "Germany",
+    "FR": "France", "FRA": "France",
+    "JP": "Japan", "JPN": "Japan",
+    "CN": "China", "CHN": "China",
+    "IN": "India", "IND": "India",
+    "BR": "Brazil", "BRA": "Brazil",
+    "AU": "Australia", "AUS": "Australia",
+    "MX": "Mexico", "MEX": "Mexico",
+    "RU": "Russian Federation", "RUS": "Russian Federation",
+    "KR": "South Korea", "KOR": "South Korea",
+    "IT": "Italy", "ITA": "Italy",
+    "ES": "Spain", "ESP": "Spain",
+    "NL": "Netherlands", "NLD": "Netherlands",
+    # Add more as needed
+}
+
+# TopoJSON (Natural Earth) name → Common data name mapping
+# Maps FROM the official TopoJSON/Natural Earth naming TO common names used in datasets
+# This is ONE-TO-ONE: each TopoJSON name maps to exactly one common name
+TOPOJSON_TO_COMMON_NAME = {
+    # Americas
+    "United States of America": "United States",
+    "Bolivia, Plurinational State of": "Bolivia",
+    "Venezuela, Bolivarian Republic of": "Venezuela",
+
+    # Europe
+    "Russian Federation": "Russia",
+    "Czechia": "Czech Republic",
+    "North Macedonia": "Macedonia",
+
+    # Asia
+    "Korea, Republic of": "South Korea",
+    "Korea, Dem. People's Rep.": "North Korea",
+    "Viet Nam": "Vietnam",
+    "Iran, Islamic Rep.": "Iran",
+    "Lao PDR": "Laos",
+    "Syrian Arab Republic": "Syria",
+
+    # Africa
+    "Côte d'Ivoire": "Ivory Coast",
+    "Congo, Dem. Rep.": "Democratic Republic of Congo",
+    "Congo, Rep.": "Republic of Congo",
+    "Tanzania, United Rep.": "Tanzania",
+    "Cabo Verde": "Cape Verde",
+    "Eswatini": "Swaziland",
+}
+
+# Common data name variations that might appear in datasets
+# Used to DETECT if data needs normalization (maps data name → TopoJSON name for detection only)
+COMMON_NAME_VARIATIONS = {
+    # These are names that might appear in data that differ from TopoJSON
+    "United States", "US", "USA", "U.S.", "U.S.A.", "America",
+    "Russia", "UK", "Britain", "Great Britain", "England",
+    "South Korea", "Korea", "North Korea", "DPRK",
+    "Vietnam", "Iran", "Persia", "Czech Republic", "Czech",
+    "Laos", "Syria", "Ivory Coast", "Burma", "Myanmar",
+    "DRC", "Democratic Republic of Congo", "Republic of Congo",
+    "Tanzania", "Cape Verde", "Swaziland", "Macedonia",
+}
 
 
 class DashboardEditorAgent(BaseAgent):
@@ -20,6 +115,7 @@ class DashboardEditorAgent(BaseAgent):
     def __init__(self, config: AgentConfig):
         super().__init__(config)
         self.llm_service = LLMService()
+        self.duckdb_service = DuckDBService()
 
     def can_handle(self, request: AgentRequest) -> float:
         """
@@ -212,18 +308,67 @@ class DashboardEditorAgent(BaseAgent):
             if chart.data and is_map_request:
                 chart_data_for_maps.extend(chart.data)
 
-        # For maps, use ALL available data (not just 5 rows)
-        # Priority: 1) sample_data (from tables), 2) chart data (aggregated)
+        # For maps, we need comprehensive geographic data - always fetch from database
+        # Context sample_data is typically limited (e.g., 20 rows) which is insufficient for maps
         if is_map_request:
-            all_data = context.sample_data if context.sample_data else chart_data_for_maps
-            data_for_prompt = all_data  # Use ALL data for maps
-            self.logger.info(f"[DashboardEditorAgent] Map request detected, using {len(data_for_prompt)} data rows")
+            # First detect geo fields from context to understand the data structure
+            context_data = context.sample_data if context.sample_data else chart_data_for_maps
+            detected_fields = self._detect_geo_fields(context_data, context.columns)
+
+            # Determine geo type hint from user feedback or detected fields
+            geo_type_hint = detected_fields.get('geo_type')
+            if not geo_type_hint:
+                if any(word in feedback_lower for word in ['state', 'states', 'us ']):
+                    geo_type_hint = 'state'
+                elif any(word in feedback_lower for word in ['country', 'countries', 'world']):
+                    geo_type_hint = 'country'
+                elif any(word in feedback_lower for word in ['county', 'counties']):
+                    geo_type_hint = 'county'
+                elif any(word in feedback_lower for word in ['province', 'provinces', 'canada']):
+                    geo_type_hint = 'province'
+
+            # Always fetch from database for maps to get comprehensive data (up to 1000 rows)
+            self.logger.info(f"[DashboardEditorAgent] Fetching map data from database (geo_type: {geo_type_hint})")
+            geo_result = await self._fetch_geographic_data(
+                dataset_id=context.dataset_id,
+                all_columns=context.columns,
+                feedback=request.feedback,
+                geo_type_hint=geo_type_hint
+            )
+
+            if geo_result and geo_result.get('data'):
+                all_data = geo_result['data']
+                # Update detected fields with the fetched data info
+                if geo_result.get('geo_field'):
+                    detected_fields['geo_field'] = geo_result['geo_field']
+                if geo_result.get('value_field'):
+                    detected_fields['value_field'] = geo_result['value_field']
+                if geo_result.get('geo_type'):
+                    detected_fields['geo_type'] = geo_result['geo_type']
+                self.logger.info(f"[DashboardEditorAgent] Using {len(all_data)} rows from database query")
+            else:
+                # Fallback to context data if database fetch fails
+                all_data = context_data
+                self.logger.warning(f"[DashboardEditorAgent] Database fetch failed, using {len(all_data)} context rows as fallback")
+
+            total_data_rows = len(all_data)
+            # Only pass 5 sample rows to prompt to avoid token limits
+            # LLM will return "__DATA_PLACEHOLDER__" which we replace with actual data
+            data_for_prompt = all_data[:5]
+            self.logger.info(f"[DashboardEditorAgent] Map request detected, passing {len(data_for_prompt)} sample rows (total: {total_data_rows})")
         else:
-            data_for_prompt = context.sample_data[:10] if context.sample_data else []
+            all_data = context.sample_data if context.sample_data else []
+            total_data_rows = len(all_data)
+            data_for_prompt = all_data[:10]
 
         # Build appropriate prompt based on request type
         if is_map_request:
-            prompt = self._build_map_prompt(kpi_data, chart_summaries, context.columns, data_for_prompt, request.feedback)
+            # Detect geo fields with abbreviation detection
+            detected_fields = self._detect_geo_fields(all_data, context.columns)
+            prompt = self._build_map_prompt(
+                kpi_data, chart_summaries, context.columns, data_for_prompt,
+                request.feedback, total_data_rows, detected_fields
+            )
         else:
             prompt = f"""Create a Vega-Lite chart based on this dashboard data and user request.
 
@@ -263,8 +408,8 @@ For comparing KPIs, use this data structure:
 Return ONLY the JSON object."""
 
         try:
-            # Use higher token limit for maps since they include all data rows
-            max_tokens = 8000 if is_map_request else 2000
+            # Use higher token limit for maps due to complex transform structures
+            max_tokens = 16000 if is_map_request else 2000
 
             response = await self.llm_service.generate(
                 prompt=prompt,
@@ -275,6 +420,13 @@ Return ONLY the JSON object."""
 
             chart_config = json.loads(response)
             self.logger.info(f"[DashboardEditorAgent] Created chart from context: {chart_config.get('title', 'Untitled')}")
+
+            # Post-process: Replace placeholders with actual data
+            if is_map_request:
+                # Inject data and abbreviation lookup table if needed
+                abbr_type = detected_fields.get('abbreviation_type') if detected_fields else None
+                chart_config = self._inject_map_placeholders(chart_config, all_data, abbr_type)
+                self.logger.info(f"[DashboardEditorAgent] Injected {len(all_data)} data rows into map spec")
 
             return DashboardEdit(
                 element_id=new_element_id,
@@ -325,7 +477,9 @@ Return ONLY the JSON object."""
         chart_summaries: list,
         columns: list,
         all_data: list,
-        feedback: str
+        feedback: str,
+        total_data_rows: int = None,
+        detected_fields: dict = None
     ) -> str:
         """Build a specialized prompt for map/geospatial chart creation"""
         feedback_lower = feedback.lower()
@@ -355,13 +509,28 @@ Return ONLY the JSON object."""
             'state', 'states', 'us ', 'usa', 'united states', 'america'
         ]) and not is_us_counties and not is_world_map
 
-        # Detect geographic and value fields in data
-        geo_field = None
-        value_field = None
+        # Use detected fields if provided, otherwise detect from data
+        geo_field = detected_fields.get('geo_field') if detected_fields else None
+        value_field = detected_fields.get('value_field') if detected_fields else None
+        uses_abbreviations = detected_fields.get('uses_abbreviations', False) if detected_fields else False
+        abbreviation_type = detected_fields.get('abbreviation_type') if detected_fields else None
+        detected_geo_type = detected_fields.get('geo_type') if detected_fields else None
 
-        if all_data and len(all_data) > 0:
+        # Use detected geo_type to infer map type when user doesn't specify
+        # This ensures "country" fields result in world maps, not US state maps
+        if detected_geo_type == 'country' and not is_us_states and not is_us_counties:
+            is_world_map = True
+        elif detected_geo_type == 'province' and not is_us_states and not is_us_counties:
+            is_canada_map = True
+            is_canada_provinces = True
+        elif detected_geo_type == 'state' and not is_world_map and not is_us_counties:
+            is_us_states = True
+        elif detected_geo_type == 'county':
+            is_us_counties = True
+
+        # Fallback field detection if not provided
+        if not geo_field and all_data and len(all_data) > 0:
             first_row = all_data[0]
-
             # Field candidates by geographic level
             county_candidates = ['county', 'county_name', 'countyname', 'fips', 'fips_code',
                                'county_fips', 'geoid']
@@ -371,69 +540,55 @@ Return ONLY the JSON object."""
                               'locationabbr', 'state_abbr']
             province_candidates = ['province', 'province_name', 'prov', 'territory',
                                   'cma', 'cma_name', 'region']
-            # Value field candidates
             value_candidates = ['value', 'datavalue', 'data_value', 'total', 'count', 'amount',
                               'datavalue_total', 'sum', 'avg', 'average', 'casualties',
                               'deaths', 'injured', 'affected', 'damage', 'loss', 'population',
-                              'rate', 'percent', 'percentage', 'income', 'gdp', 'sales']
+                              'rate', 'percent', 'percentage', 'income', 'gdp', 'sales',
+                              'severity', 'index', 'score', 'risk', 'level', 'magnitude',
+                              'intensity', 'frequency', 'cases', 'incidents']
 
             for key in first_row.keys():
                 key_lower = key.lower()
-                # Check for geographic fields based on detected map type
-                if is_us_counties:
-                    if any(c in key_lower for c in county_candidates):
-                        geo_field = key
-                elif is_canada_map:
-                    if any(p in key_lower for p in province_candidates):
-                        geo_field = key
-                elif is_world_map or is_europe_map:
-                    if any(c in key_lower for c in country_candidates):
-                        geo_field = key
-                elif is_us_states:
-                    if any(s in key_lower for s in state_candidates):
-                        geo_field = key
-                # Fallback: check all geographic candidates
+                if is_us_counties and any(c in key_lower for c in county_candidates):
+                    geo_field = key
+                elif is_canada_map and any(p in key_lower for p in province_candidates):
+                    geo_field = key
+                elif (is_world_map or is_europe_map) and any(c in key_lower for c in country_candidates):
+                    geo_field = key
+                elif is_us_states and any(s in key_lower for s in state_candidates):
+                    geo_field = key
                 if not geo_field:
                     all_geo = county_candidates + country_candidates + state_candidates + province_candidates
                     if any(g in key_lower for g in all_geo):
                         geo_field = key
-                # Check for value fields
                 if any(v in key_lower for v in value_candidates):
                     value_field = key
 
         # Determine map type and configuration
-        # Available TopoJSON sources:
-        # - World: https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json
-        # - US States: https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json
-        # - US Counties: https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json
-        # - Canada Provinces: https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/canada.geojson
-        # - Europe: https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/TopoJSON/europe.topojson
-
         if is_us_counties:
             map_type = "us_counties"
             topojson_url = "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json"
             topojson_feature = "counties"
             projection = "albersUsa"
-            geo_property = "id"  # FIPS code for counties
+            geo_property = "id"
             geo_label = "County"
-            lookup_note = "Counties use FIPS codes (5-digit: 2-digit state + 3-digit county). The 'id' field contains the FIPS code."
+            lookup_note = "Counties use FIPS codes (5-digit: 2-digit state + 3-digit county)."
         elif is_canada_provinces:
             map_type = "canada_provinces"
             topojson_url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/canada.geojson"
-            topojson_feature = None  # GeoJSON, not TopoJSON
+            topojson_feature = None
             projection = "conicConformal"
             geo_property = "properties.name"
             geo_label = "Province"
             lookup_note = "Use full province names (e.g., 'Ontario', 'British Columbia')."
         elif is_canada_map:
-            # CMA or general Canada - use provinces as fallback
             map_type = "canada_provinces"
             topojson_url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/canada.geojson"
             topojson_feature = None
             projection = "conicConformal"
             geo_property = "properties.name"
             geo_label = "Province/CMA"
-            lookup_note = "For CMAs, you may need to aggregate to province level or provide custom GeoJSON."
+            lookup_note = "For CMAs, aggregate to province level."
         elif is_europe_map:
             map_type = "europe"
             topojson_url = "https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/TopoJSON/europe.topojson"
@@ -441,7 +596,7 @@ Return ONLY the JSON object."""
             projection = "conicConformal"
             geo_property = "properties.NAME"
             geo_label = "Country"
-            lookup_note = "Use English country names (e.g., 'Germany', 'France')."
+            lookup_note = "Use English country names."
         elif is_world_map or (not is_us_states and not geo_field):
             map_type = "world"
             topojson_url = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
@@ -449,7 +604,7 @@ Return ONLY the JSON object."""
             projection = "equalEarth"
             geo_property = "properties.name"
             geo_label = "Country"
-            lookup_note = "Use Natural Earth naming: 'United States of America' (not 'USA'), 'United Kingdom' (not 'UK')."
+            lookup_note = "Use Natural Earth naming: 'United States of America' (not 'USA')."
         else:
             map_type = "us_states"
             topojson_url = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json"
@@ -459,16 +614,17 @@ Return ONLY the JSON object."""
             geo_label = "State"
             lookup_note = "Use full state names (e.g., 'California', not 'CA')."
 
-        self.logger.info(f"[DashboardEditorAgent] Map prompt - type: {map_type}, geo_field: {geo_field}, value_field: {value_field}")
-        self.logger.info(f"[DashboardEditorAgent] Map prompt - total data rows: {len(all_data)}")
+        self.logger.info(f"[DashboardEditorAgent] Map prompt - type: {map_type}, geo_field: {geo_field}, value_field: {value_field}, uses_abbr: {uses_abbreviations}")
 
-        # Build format specification based on map type
+        actual_total_rows = total_data_rows if total_data_rows is not None else len(all_data)
+        self.logger.info(f"[DashboardEditorAgent] Map prompt - sample rows: {len(all_data)}, total rows: {actual_total_rows}")
+
+        # Build format specification
         if topojson_feature:
             data_format = f'{{"type": "topojson", "feature": "{topojson_feature}"}}'
         else:
-            data_format = '{"type": "json", "property": "features"}'  # GeoJSON format
+            data_format = '{"type": "json", "property": "features"}'
 
-        # Map type descriptions
         map_type_descriptions = {
             "world": "WORLD/COUNTRIES",
             "us_states": "US STATES",
@@ -478,21 +634,89 @@ Return ONLY the JSON object."""
         }
         map_description = map_type_descriptions.get(map_type, map_type.upper())
 
+        # Build KPI context for the prompt
+        kpi_context = ""
+        if kpi_data:
+            kpi_context = f"""
+AVAILABLE KPIs ({len(kpi_data)} total):
+{json.dumps(kpi_data, indent=2)}
+"""
+
+        # Build abbreviation/normalization handling instructions
+        abbr_instructions = ""
+        bridge_transform_example = ""
+
+        if uses_abbreviations and abbreviation_type:
+            # All lookups use consistent field names: map_name (TopoJSON) and clean_name (data)
+            abbr_instructions = f"""
+CRITICAL - DATA NAMES DON'T MATCH TOPOJSON:
+Your data uses names like 'United States' but the TopoJSON uses 'United States of America'.
+
+You MUST use a THREE-STEP BRIDGE TRANSFORM with a fallback for countries not in the mapping.
+The mapping table uses: "map_name" (TopoJSON name) and "clean_name" (your data's name).
+"""
+
+            bridge_transform_example = f"""
+REQUIRED TRANSFORM PATTERN (Three-Step Bridge with Fallback):
+"transform": [
+    {{
+        "lookup": "properties.name",
+        "from": {{
+            "data": {{"values": "__ABBR_LOOKUP_PLACEHOLDER__"}},
+            "key": "map_name",
+            "fields": ["clean_name"]
+        }}
+    }},
+    {{
+        "calculate": "datum.clean_name || datum.properties.name",
+        "as": "lookup_key"
+    }},
+    {{
+        "lookup": "lookup_key",
+        "from": {{
+            "data": {{"values": "__DATA_PLACEHOLDER__"}},
+            "key": "{geo_field}",
+            "fields": ["{value_field or 'value'}"]
+        }}
+    }}
+]
+
+EXPLANATION:
+1. First lookup: Match TopoJSON's "properties.name" (e.g., "United States of America") against
+   "map_name" in the mapping table, and pull in "clean_name" (e.g., "United States").
+   Countries NOT in the mapping table will have null for "clean_name".
+
+2. Calculate (CRITICAL FALLBACK): Creates "lookup_key" using "clean_name" if it exists,
+   otherwise falls back to "properties.name". This ensures countries like "Brazil" that
+   don't need mapping still work (Brazil → Brazil).
+
+3. Second lookup: Match "lookup_key" against your data's "{geo_field}" field to get values.
+
+The mapping table format is:
+[
+    {{"map_name": "United States of America", "clean_name": "United States"}},
+    {{"map_name": "Russian Federation", "clean_name": "Russia"}},
+    ...
+]
+"""
+
         return f"""Create a Vega-Lite GEOSPATIAL CHOROPLETH MAP based on this data.
 
 IMPORTANT: This is a {map_description} MAP request.
-
-AVAILABLE DATA ({len(all_data)} rows total):
+{kpi_context}
+SAMPLE DATA (showing {len(all_data)} of {actual_total_rows} total rows):
 {json.dumps(all_data, indent=2)}
 
 DETECTED FIELDS:
 - Geographic field: {geo_field or 'Not detected - check data keys'}
 - Value field for coloring: {value_field or 'Not detected - check data keys'}
+- Uses abbreviations: {uses_abbreviations}
+- Abbreviation type: {abbreviation_type or 'N/A'}
 
 AVAILABLE COLUMNS: {columns if columns else list(all_data[0].keys()) if all_data else 'None'}
 
 USER REQUEST: "{feedback}"
-
+{abbr_instructions}
 MAP CONFIGURATION:
 - Map Type: {map_description}
 - Geographic Data URL: {topojson_url}
@@ -500,12 +724,13 @@ MAP CONFIGURATION:
 - Projection: {projection}
 - Geographic Property for lookup: {geo_property}
 - LOOKUP NOTE: {lookup_note}
-
+{bridge_transform_example}
 Create a Vega-Lite choropleth map specification. You MUST:
 1. Use the geographic data from: "{topojson_url}"
-2. Include ALL {len(all_data)} data rows in the lookup transform
-3. Use the correct geographic field to join with "{geo_property}"
+2. Use the placeholder "__DATA_PLACEHOLDER__" for the data values (will be injected post-processing)
+3. {"Use '__ABBR_LOOKUP_PLACEHOLDER__' for the abbreviation lookup table (will be injected)" if uses_abbreviations else "Use the correct geographic field to join with the TopoJSON"}
 4. Color-code regions based on the value field
+5. Place "projection" at the TOP LEVEL of the spec (not inside encoding)
 
 Return a JSON object:
 {{
@@ -515,46 +740,472 @@ Return a JSON object:
         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
         "width": 800,
         "height": 500,
+        "projection": {{"type": "{projection}"}},
         "data": {{
             "url": "{topojson_url}",
             "format": {data_format}
         }},
-        "transform": [{{
-            "lookup": "{geo_property}",
-            "from": {{
-                "data": {{"values": [... ALL {len(all_data)} rows ...]}},
-                "key": "<your geographic field that matches {geo_property}>",
-                "fields": ["<value field for coloring>"]
-            }}
-        }}],
-        "projection": {{"type": "{projection}"}},
+        "transform": [
+            {"... bridge transform if using abbreviations ..." if uses_abbreviations else "... lookup transform ..."}
+        ],
         "mark": {{"type": "geoshape", "stroke": "white", "strokeWidth": 0.5}},
         "encoding": {{
             "color": {{
-                "field": "<value field>",
+                "field": "{value_field or '<value field>'}",
                 "type": "quantitative",
-                "scale": {{"scheme": "reds"}},
+                "scale": {{"scheme": "blues"}},
                 "legend": {{"title": "<value description>"}}
             }},
             "tooltip": [
-                {{"field": "{geo_property}", "type": "nominal", "title": "{geo_label}"}},
-                {{"field": "<value field>", "type": "quantitative", "title": "Value", "format": ",.0f"}}
+                {{"field": "{'name' if uses_abbreviations else geo_property}", "type": "nominal", "title": "{geo_label}"}},
+                {{"field": "{value_field or '<value field>'}", "type": "quantitative", "title": "Value", "format": ",.0f"}}
             ]
         }}
     }}
 }}
 
-CRITICAL NOTES:
-- {lookup_note}
-- Include ALL data rows in the values array, not just a sample
-- The lookup key field in your data must match the format expected by {geo_property}
-
-COMMON NAME MAPPINGS:
-- World: "USA" -> "United States of America", "UK" -> "United Kingdom", "Russia" -> "Russian Federation"
-- US Counties: Use 5-digit FIPS codes (e.g., "06037" for Los Angeles County)
-- Canada: Use full province names (e.g., "Ontario", "Quebec", "British Columbia")
+CRITICAL REQUIREMENTS:
+1. {lookup_note}
+2. Use "__DATA_PLACEHOLDER__" for the values array - the actual {actual_total_rows} rows will be injected
+3. {"Use '__ABBR_LOOKUP_PLACEHOLDER__' for the abbreviation-to-name lookup table" if uses_abbreviations else "Match your data's geographic field to " + geo_property}
+4. projection MUST be at the TOP LEVEL of vegaSpec (NOT inside encoding)
+5. Include all relevant value fields in the lookup transform's "fields" array
 
 Return ONLY the JSON object."""
+
+    def _inject_data_placeholder(self, chart_config: dict, actual_data: list) -> dict:
+        """
+        Replace __DATA_PLACEHOLDER__ in the chart config with actual data.
+
+        This is used to avoid token limits by having the LLM return a placeholder
+        instead of all data rows, then injecting the actual data post-processing.
+        """
+        import copy
+        result = copy.deepcopy(chart_config)
+
+        def replace_placeholder(obj):
+            """Recursively find and replace __DATA_PLACEHOLDER__ in nested structure"""
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if value == "__DATA_PLACEHOLDER__":
+                        obj[key] = actual_data
+                    elif isinstance(value, (dict, list)):
+                        replace_placeholder(value)
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    if item == "__DATA_PLACEHOLDER__":
+                        obj[i] = actual_data
+                    elif isinstance(item, (dict, list)):
+                        replace_placeholder(item)
+
+        replace_placeholder(result)
+        return result
+
+    def _inject_map_placeholders(
+        self,
+        chart_config: dict,
+        actual_data: list,
+        abbreviation_type: Optional[str] = None
+    ) -> dict:
+        """
+        Replace map placeholders in the chart config with actual data.
+
+        Handles both __DATA_PLACEHOLDER__ and __ABBR_LOOKUP_PLACEHOLDER__.
+
+        Args:
+            chart_config: The Vega-Lite chart configuration with placeholders
+            actual_data: The actual data rows to inject
+            abbreviation_type: Type of abbreviation lookup to inject (us_state, ca_province, country)
+
+        Returns:
+            Chart config with placeholders replaced
+        """
+        import copy
+        result = copy.deepcopy(chart_config)
+
+        # Get abbreviation lookup data if needed
+        abbr_lookup_data = []
+        if abbreviation_type:
+            abbr_lookup_data = self._get_abbreviation_lookup_data(abbreviation_type)
+            self.logger.info(f"[DashboardEditorAgent] Injecting {len(abbr_lookup_data)} abbreviation lookup entries")
+
+        def replace_placeholders(obj):
+            """Recursively find and replace placeholders in nested structure"""
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if value == "__DATA_PLACEHOLDER__":
+                        obj[key] = actual_data
+                    elif value == "__ABBR_LOOKUP_PLACEHOLDER__":
+                        obj[key] = abbr_lookup_data
+                    elif isinstance(value, (dict, list)):
+                        replace_placeholders(value)
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    if item == "__DATA_PLACEHOLDER__":
+                        obj[i] = actual_data
+                    elif item == "__ABBR_LOOKUP_PLACEHOLDER__":
+                        obj[i] = abbr_lookup_data
+                    elif isinstance(item, (dict, list)):
+                        replace_placeholders(item)
+
+        replace_placeholders(result)
+
+        # Ensure projection is at top level of vegaSpec (fix common LLM mistake)
+        if 'vegaSpec' in result:
+            vega_spec = result['vegaSpec']
+            self._ensure_projection_at_top_level(vega_spec)
+
+        return result
+
+    def _ensure_projection_at_top_level(self, vega_spec: dict) -> None:
+        """
+        Ensure projection is defined at the top level of the Vega-Lite spec.
+
+        LLMs sometimes incorrectly place projection inside encoding or other nested structures.
+        This method moves it to the top level where it belongs for geoshape marks.
+        """
+        # Check if projection exists at top level
+        if 'projection' in vega_spec:
+            return
+
+        # Check common wrong locations and move to top level
+        projection = None
+
+        # Check in encoding
+        if 'encoding' in vega_spec and isinstance(vega_spec['encoding'], dict):
+            if 'projection' in vega_spec['encoding']:
+                projection = vega_spec['encoding'].pop('projection')
+
+        # Check in mark
+        if 'mark' in vega_spec and isinstance(vega_spec['mark'], dict):
+            if 'projection' in vega_spec['mark']:
+                projection = vega_spec['mark'].pop('projection')
+
+        # If found, move to top level
+        if projection:
+            vega_spec['projection'] = projection
+            self.logger.info(f"[DashboardEditorAgent] Moved projection to top level: {projection}")
+
+        # If still no projection and this is a geoshape, add default
+        mark = vega_spec.get('mark', {})
+        mark_type = mark.get('type') if isinstance(mark, dict) else mark
+        if mark_type == 'geoshape' and 'projection' not in vega_spec:
+            # Detect appropriate projection from data URL
+            data_url = vega_spec.get('data', {}).get('url', '')
+            if 'us-atlas' in data_url:
+                vega_spec['projection'] = {"type": "albersUsa"}
+            elif 'world-atlas' in data_url:
+                vega_spec['projection'] = {"type": "equalEarth"}
+            else:
+                vega_spec['projection'] = {"type": "mercator"}
+            self.logger.info(f"[DashboardEditorAgent] Added default projection: {vega_spec['projection']}")
+
+    def _detect_geo_fields(self, data: List[Dict[str, Any]], columns: List[str]) -> Dict[str, Optional[str]]:
+        """
+        Detect geographic fields in the data or column list.
+
+        Returns a dict with detected field names:
+        {
+            'geo_field': <field name or None>,
+            'geo_type': <'state'|'country'|'county'|'province'|None>,
+            'value_field': <field name or None>,
+            'uses_abbreviations': <True|False>,
+            'abbreviation_type': <'us_state'|'ca_province'|'country'|None>
+        }
+        """
+        # Geographic field candidates by type - ordered by specificity
+        # Fields containing 'abbr' strongly indicate abbreviations
+        geo_candidates = {
+            'state': {
+                'abbr_fields': ['locationabbr', 'state_abbr', 'stateabbr', 'stabbr',
+                               'st_abbr', 'state_code', 'statecode'],
+                'name_fields': ['state', 'statename', 'state_name', 'locationdesc',
+                               'us_state', 'statedesc']
+            },
+            'country': {
+                'abbr_fields': ['iso', 'iso2', 'iso3', 'iso_code', 'country_code',
+                               'countrycode', 'country_abbr'],
+                'name_fields': ['country', 'country_name', 'countryname', 'nation',
+                               'territory']
+            },
+            'county': {
+                'abbr_fields': ['fips', 'fips_code', 'county_fips', 'geoid', 'fipscode'],
+                'name_fields': ['county', 'county_name', 'countyname']
+            },
+            'province': {
+                'abbr_fields': ['prov_abbr', 'province_code', 'provcode'],
+                'name_fields': ['province', 'province_name', 'prov', 'cma', 'cma_name',
+                               'region', 'canadian_province']
+            }
+        }
+
+        # Value field candidates - include index, score, severity for map-friendly fields
+        value_candidates = ['value', 'datavalue', 'data_value', 'total', 'count', 'amount',
+                           'sum', 'avg', 'average', 'casualties', 'deaths', 'injured',
+                           'affected', 'damage', 'loss', 'population', 'rate', 'percent',
+                           'percentage', 'income', 'gdp', 'sales', 'revenue', 'quantity',
+                           'severity', 'index', 'score', 'severity_index', 'risk', 'level',
+                           'magnitude', 'intensity', 'frequency', 'cases', 'incidents']
+
+        result = {
+            'geo_field': None,
+            'geo_type': None,
+            'value_field': None,
+            'uses_abbreviations': False,
+            'abbreviation_type': None
+        }
+
+        # Get all available field names
+        field_names = set(columns) if columns else set()
+        if data and len(data) > 0:
+            field_names.update(data[0].keys())
+
+        field_names_lower = {f.lower(): f for f in field_names}
+
+        # Check for geographic fields - prioritize abbreviation fields first
+        for geo_type, field_types in geo_candidates.items():
+            # First check abbreviation fields
+            for candidate in field_types['abbr_fields']:
+                if candidate in field_names_lower:
+                    result['geo_field'] = field_names_lower[candidate]
+                    result['geo_type'] = geo_type
+                    result['uses_abbreviations'] = True
+                    if geo_type == 'state':
+                        result['abbreviation_type'] = 'us_state'
+                    elif geo_type == 'province':
+                        result['abbreviation_type'] = 'ca_province'
+                    elif geo_type == 'country':
+                        result['abbreviation_type'] = 'country'
+                    break
+            if result['geo_field']:
+                break
+
+            # Then check name fields
+            for candidate in field_types['name_fields']:
+                if candidate in field_names_lower:
+                    result['geo_field'] = field_names_lower[candidate]
+                    result['geo_type'] = geo_type
+                    break
+            if result['geo_field']:
+                break
+
+        # If we found a geo field but haven't determined if it uses abbreviations,
+        # check the actual data values
+        if result['geo_field'] and not result['uses_abbreviations'] and data:
+            result['uses_abbreviations'], result['abbreviation_type'] = self._check_data_for_abbreviations(
+                data, result['geo_field'], result['geo_type']
+            )
+
+        # Check for value fields using substring matching
+        for field_lower, field_original in field_names_lower.items():
+            if any(v in field_lower for v in value_candidates):
+                result['value_field'] = field_original
+                break
+
+        self.logger.info(f"[DashboardEditorAgent] Detected geo fields: {result}")
+        return result
+
+    def _check_data_for_abbreviations(
+        self,
+        data: List[Dict[str, Any]],
+        geo_field: str,
+        geo_type: str
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Check actual data values to determine if they are abbreviations or need normalization.
+
+        Returns (needs_transform, transform_type) where transform_type can be:
+        - 'us_state': US state abbreviations (e.g., 'TN' -> 'Tennessee')
+        - 'ca_province': Canadian province abbreviations
+        - 'country': Country codes (e.g., 'US' -> 'United States of America')
+        - 'country_names': Country name variations (e.g., 'United States' -> 'United States of America')
+        """
+        if not data or not geo_field:
+            return False, None
+
+        # Sample values from data (preserve original case for name matching)
+        sample_values_original = set()
+        sample_values_upper = set()
+        for row in data[:50]:  # Check first 50 rows
+            val = row.get(geo_field)
+            if val and isinstance(val, str):
+                sample_values_original.add(val.strip())
+                sample_values_upper.add(val.strip().upper())
+
+        if not sample_values_original:
+            return False, None
+
+        # Check if values match US state abbreviations
+        if geo_type in ('state', None):
+            us_abbr_matches = sum(1 for v in sample_values_upper if v in US_STATE_ABBR_TO_NAME)
+            if us_abbr_matches >= len(sample_values_upper) * 0.5:  # >50% match
+                self.logger.info(f"[DashboardEditorAgent] Data uses US state abbreviations ({us_abbr_matches}/{len(sample_values_upper)} match)")
+                return True, 'us_state'
+
+        # Check if values match Canadian province abbreviations
+        if geo_type in ('province', None):
+            ca_abbr_matches = sum(1 for v in sample_values_upper if v in CA_PROVINCE_ABBR_TO_NAME)
+            if ca_abbr_matches >= len(sample_values_upper) * 0.5:
+                self.logger.info(f"[DashboardEditorAgent] Data uses Canadian province abbreviations ({ca_abbr_matches}/{len(sample_values_upper)} match)")
+                return True, 'ca_province'
+
+        # Check if values match country codes (short codes like US, UK, DE)
+        if geo_type in ('country', None):
+            country_code_matches = sum(1 for v in sample_values_upper if v in COUNTRY_CODE_TO_NAME)
+            if country_code_matches >= len(sample_values_upper) * 0.3:
+                self.logger.info(f"[DashboardEditorAgent] Data uses country codes ({country_code_matches}/{len(sample_values_upper)} match)")
+                return True, 'country'
+
+        # Check if values are country names that need normalization
+        if geo_type in ('country', None):
+            # Check against common name variations (case-insensitive)
+            common_names_upper = {n.upper() for n in COMMON_NAME_VARIATIONS}
+            name_norm_matches = sum(1 for v in sample_values_upper if v in common_names_upper)
+            if name_norm_matches >= 1:  # Even one match suggests we need normalization
+                self.logger.info(f"[DashboardEditorAgent] Data uses country names needing normalization ({name_norm_matches}/{len(sample_values_upper)} match)")
+                return True, 'country_names'
+
+        # Check value lengths - short values (2-3 chars) likely abbreviations
+        avg_len = sum(len(v) for v in sample_values_original) / len(sample_values_original)
+        if avg_len <= 3:
+            self.logger.info(f"[DashboardEditorAgent] Data appears to use abbreviations (avg length: {avg_len:.1f})")
+            if geo_type == 'state':
+                return True, 'us_state'
+            elif geo_type == 'province':
+                return True, 'ca_province'
+            elif geo_type == 'country':
+                return True, 'country'
+            return True, 'us_state'  # Default to US state
+
+        return False, None
+
+    def _get_abbreviation_lookup_data(self, abbreviation_type: str) -> List[Dict[str, str]]:
+        """
+        Get the lookup table data for converting between naming conventions.
+
+        Returns a list of dicts for use in Vega lookup transforms.
+        Each entry has: {"map_name": "TopoJSON Name", "clean_name": "Data Name"}
+        MUST be one-to-one on map_name to avoid Vega-Lite lookup conflicts.
+        """
+        if abbreviation_type == 'us_state':
+            # Reverse mapping: full name (TopoJSON) → abbreviation (data)
+            # US_STATE_ABBR_TO_NAME is already one-to-one (each abbr → unique name)
+            return [{"map_name": v, "clean_name": k} for k, v in US_STATE_ABBR_TO_NAME.items()]
+        elif abbreviation_type == 'ca_province':
+            return [{"map_name": v, "clean_name": k} for k, v in CA_PROVINCE_ABBR_TO_NAME.items()]
+        elif abbreviation_type == 'country':
+            # Reverse mapping: full name (TopoJSON) → code (data)
+            # COUNTRY_CODE_TO_NAME has duplicates (US, USA → same name) so deduplicate by map_name
+            # Keep the shortest code as the canonical one (e.g., "US" over "USA")
+            seen = {}
+            for code, name in COUNTRY_CODE_TO_NAME.items():
+                if name not in seen or len(code) < len(seen[name]):
+                    seen[name] = code
+            return [{"map_name": name, "clean_name": code} for name, code in seen.items()]
+        elif abbreviation_type == 'country_names':
+            # TopoJSON name → common data name (already one-to-one, correct direction)
+            return [{"map_name": k, "clean_name": v} for k, v in TOPOJSON_TO_COMMON_NAME.items()]
+        return []
+
+    async def _fetch_geographic_data(
+        self,
+        dataset_id: str,
+        all_columns: List[str],
+        feedback: str,
+        geo_type_hint: Optional[str] = None
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Fetch geographic data from the database when context data lacks geo fields.
+
+        Uses LLM to generate appropriate aggregation query based on user request
+        and available columns in the dataset.
+
+        Args:
+            dataset_id: The dataset ID to query
+            all_columns: List of all available columns in the dataset
+            feedback: User's request (e.g., "show value by state")
+            geo_type_hint: Optional hint for geographic type from user request
+
+        Returns:
+            List of dicts with geographic data, or None if failed
+        """
+        if not dataset_id:
+            self.logger.warning("[DashboardEditorAgent] No dataset_id provided for geographic data fetch")
+            return None
+
+        self.logger.info(f"[DashboardEditorAgent] Fetching geographic data for dataset: {dataset_id}")
+        self.logger.info(f"[DashboardEditorAgent] Available columns: {all_columns}")
+
+        # Use LLM to generate the appropriate aggregation query
+        prompt = f"""Generate a SQL query to aggregate data by geographic region for a map visualization.
+
+AVAILABLE COLUMNS in the 'dataset' table:
+{json.dumps(all_columns, indent=2)}
+
+USER REQUEST: "{feedback}"
+
+GEOGRAPHIC TYPE HINT: {geo_type_hint or 'Detect from columns or user request'}
+
+Generate a SQL query that:
+1. Identifies the geographic column (state, country, county, province, etc.)
+2. Aggregates numeric values appropriately (SUM, AVG, COUNT, etc.)
+3. Groups by the geographic column
+4. Returns results suitable for a choropleth map
+
+IMPORTANT:
+- The table is named 'dataset'
+- Return ONLY rows with non-null geographic values
+- Use LIMIT 1000 to get comprehensive geographic coverage
+
+Return a JSON object:
+{{
+    "sql": "<the SQL query>",
+    "geo_field": "<name of geographic column in result>",
+    "value_field": "<name of value column in result>",
+    "geo_type": "<state|country|county|province>"
+}}
+
+Return ONLY the JSON object."""
+
+        try:
+            response = await self.llm_service.generate(
+                prompt=prompt,
+                response_format="json",
+                temperature=0.2,
+                max_tokens=500
+            )
+
+            query_config = json.loads(response)
+            sql = query_config.get('sql', '')
+
+            if not sql:
+                self.logger.warning("[DashboardEditorAgent] LLM did not generate a valid SQL query")
+                return None
+
+            self.logger.info(f"[DashboardEditorAgent] Generated SQL for geographic data: {sql}")
+
+            # Execute the query
+            result_df = self.duckdb_service.execute_query(sql, dataset_id=dataset_id)
+
+            if result_df.empty:
+                self.logger.warning("[DashboardEditorAgent] Geographic query returned no results")
+                return None
+
+            # Convert to list of dicts
+            geo_data = result_df.to_dict('records')
+            self.logger.info(f"[DashboardEditorAgent] Fetched {len(geo_data)} geographic data rows")
+
+            # Attach metadata for later use
+            return {
+                'data': geo_data,
+                'geo_field': query_config.get('geo_field'),
+                'value_field': query_config.get('value_field'),
+                'geo_type': query_config.get('geo_type', 'state')
+            }
+
+        except Exception as e:
+            self.logger.error(f"[DashboardEditorAgent] Failed to fetch geographic data: {e}")
+            return None
 
     async def _create_kpi_from_context(
         self,

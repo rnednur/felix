@@ -356,9 +356,12 @@ class CodeExecutorService:
         return visualizations
 
     def make_json_serializable(self, obj: Any) -> Any:
-        """Convert object to JSON-serializable format"""
+        """Convert object to JSON-serializable format, handling NaN/Inf values"""
+        import math
 
-        if isinstance(obj, dict):
+        if obj is None:
+            return None
+        elif isinstance(obj, dict):
             # Convert dict keys to strings if they're not JSON-serializable
             result = {}
             for k, v in obj.items():
@@ -373,22 +376,36 @@ class CodeExecutorService:
             return result
         elif isinstance(obj, (list, tuple)):
             return [self.make_json_serializable(item) for item in obj]
+        elif isinstance(obj, bool):
+            # Check bool before int since bool is a subclass of int
+            return obj
+        elif isinstance(obj, str):
+            return obj
+        elif isinstance(obj, float):
+            # Handle NaN and Inf values which are not valid JSON
+            if math.isnan(obj) or math.isinf(obj):
+                return None
+            return obj
+        elif isinstance(obj, int):
+            return obj
         elif isinstance(obj, (np.integer, np.int64, np.int32)):
             return int(obj)
         elif isinstance(obj, (np.floating, np.float64, np.float32)):
-            return float(obj)
+            # Handle numpy NaN and Inf
+            val = float(obj)
+            if math.isnan(val) or math.isinf(val):
+                return None
+            return val
         elif isinstance(obj, np.ndarray):
-            return obj.tolist()
+            return self.make_json_serializable(obj.tolist())
         elif isinstance(obj, pd.DataFrame):
             # Reset index to avoid tuple keys from multi-index
             df_copy = obj.reset_index(drop=False)
-            return df_copy.to_dict('records')
+            return self.make_json_serializable(df_copy.to_dict('records'))
         elif isinstance(obj, pd.Series):
-            return obj.tolist()
+            return self.make_json_serializable(obj.tolist())
         elif pd.isna(obj):
             return None
-        elif isinstance(obj, (str, int, float, bool, type(None))):
-            return obj
         else:
             # Try to convert to string as fallback
             return str(obj)

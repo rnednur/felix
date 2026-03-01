@@ -71,7 +71,19 @@ class SpatialService:
                 print(f"[SPATIAL] ✗ Coordinate columns found but validation failed: {lat_col}, {lng_col}")
                 logger.warning(f"Coordinate columns found but validation failed: {lat_col}, {lng_col}")
 
-        # Pattern 2: Single address column
+        # Pattern 2: WKT geometry column (POINT, POLYGON, LINESTRING, etc.)
+        wkt_col = self._find_wkt_column(df)
+        if wkt_col:
+            logger.info(f"Detected WKT geometry column: {wkt_col}")
+            result.update({
+                "has_spatial": True,
+                "type": "wkt",
+                "columns": {"wkt": wkt_col},
+                "geocoding_required": False
+            })
+            return result
+
+        # Pattern 3: Single address column
         address_patterns = ['address', 'location', 'addr', 'street', 'place']
         address_col = self._find_column(df, address_patterns)
 
@@ -109,6 +121,36 @@ class SpatialService:
 
         logger.info("No spatial columns detected")
         return result
+
+    def _find_wkt_column(self, df: pd.DataFrame) -> Optional[str]:
+        """
+        Detect a column whose values look like WKT geometry strings
+        (POINT, POLYGON, LINESTRING, MULTIPOLYGON, etc.)
+        Checks column name hints first, then samples values.
+        """
+        WKT_KEYWORDS = ('POINT', 'POLYGON', 'LINESTRING', 'MULTIPOLYGON',
+                        'MULTILINESTRING', 'MULTIPOINT', 'GEOMETRYCOLLECTION')
+        # Name hints that suggest a geometry column
+        name_hints = ('geom', 'geometry', 'geolocation', 'geo', 'shape', 'the_geom', 'wkt')
+
+        # Prefer columns whose names match geometry hints, checked by value first
+        candidate_cols = sorted(
+            df.columns,
+            key=lambda c: 0 if any(h in c.lower() for h in name_hints) else 1
+        )
+
+        for col in candidate_cols:
+            if df[col].dtype == object:
+                sample = df[col].dropna().head(10).astype(str)
+                if sample.empty:
+                    continue
+                wkt_count = sum(
+                    1 for v in sample
+                    if v.strip().upper().startswith(WKT_KEYWORDS)
+                )
+                if wkt_count >= min(3, len(sample)):
+                    return col
+        return None
 
     def _find_column(self, df: pd.DataFrame, patterns: List[str]) -> Optional[str]:
         """Find column matching any pattern (case-insensitive, exact match first, then contains)"""

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MapContent, DisplaySize } from '@/types/canvas'
-import { MapView } from '@/components/map/MapView'
+import { InteractiveMapView } from '@/components/map/InteractiveMapView'
 import { Edit2, Check, Minimize2, Square, Maximize2, RectangleHorizontal, Trash2 } from 'lucide-react'
 import { CardBadge } from '@/components/ui/card-badge'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -165,7 +165,7 @@ export function MapItem({ content, mapId, mapIndex, onTitleChange, onSizeChange,
 
       {/* Map Container */}
       <div className="flex-1 min-h-0 relative">
-        <MapView
+        <InteractiveMapView
           datasetId={datasetId || mapId || 'default'}
           data={data}
           spatialColumns={spatialColumns}

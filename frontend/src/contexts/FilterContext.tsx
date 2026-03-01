@@ -19,6 +19,12 @@ export interface ChartFilter {
   filters: FilterState
 }
 
+export interface CrossfilterSelection {
+  sourceChartId: string
+  field: string
+  value: any
+}
+
 export interface FilterContextType {
   // Global filters (apply to all charts)
   globalFilters: FilterState
@@ -40,6 +46,11 @@ export interface FilterContextType {
   hasActiveGlobalFilters: boolean
   hasActiveChartFilters: (chartId: string) => boolean
 
+  // Crossfilter selection (click-to-filter across charts)
+  crossfilterSelection: CrossfilterSelection | null
+  setCrossfilterSelection: (chartId: string, field: string, value: any) => void
+  clearCrossfilterSelection: () => void
+
   // Cascading filter configuration
   filterConfig: DashboardFilterConfig[]
   setFilterConfig: (config: DashboardFilterConfig[]) => void
@@ -57,6 +68,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const [globalFilters, setGlobalFilters] = useState<FilterState>({})
   const [chartFilters, setChartFilters] = useState<{ [chartId: string]: FilterState }>({})
   const [filterConfig, setFilterConfigState] = useState<DashboardFilterConfig[]>([])
+  const [crossfilterSelection, setCrossfilterSelectionState] = useState<CrossfilterSelection | null>(null)
 
   // Global filter operations
   const setGlobalFilter = useCallback((
@@ -167,6 +179,21 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     return filterConfig.filter(isFilterVisible)
   }, [filterConfig, isFilterVisible])
 
+  // Crossfilter operations
+  const setCrossfilterSelection = useCallback((chartId: string, field: string, value: any) => {
+    setCrossfilterSelectionState(prev => {
+      // Toggle off if clicking the same chart + field + value
+      if (prev && prev.sourceChartId === chartId && prev.field === field && prev.value === value) {
+        return null
+      }
+      return { sourceChartId: chartId, field, value }
+    })
+  }, [])
+
+  const clearCrossfilterSelection = useCallback(() => {
+    setCrossfilterSelectionState(null)
+  }, [])
+
   // When a parent filter changes, clear dependent filter selections
   const setGlobalFilterWithCascade = useCallback((
     column: string,
@@ -206,6 +233,10 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       hasActiveFilters,
       hasActiveGlobalFilters,
       hasActiveChartFilters,
+      // Crossfilter
+      crossfilterSelection,
+      setCrossfilterSelection,
+      clearCrossfilterSelection,
       // Cascading filter support
       filterConfig,
       setFilterConfig,

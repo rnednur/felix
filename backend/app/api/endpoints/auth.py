@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.core.database import get_db
@@ -15,6 +15,7 @@ from app.core.security import (
 )
 from app.models.user import User, UserRole
 from app.models.audit import AuditLog
+from app.services.email_service import send_password_reset_email
 from app.schemas.user import (
     UserCreate, UserResponse, Token, LoginRequest, RefreshTokenRequest,
     ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
@@ -184,43 +185,45 @@ def logout(current_user: User = Depends(get_current_user), db: Session = Depends
 
 
 @router.post("/forgot-password")
-def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(
+    request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """
-    Request a password reset.
-    In production, this would send an email with the reset link.
-    For development, it returns the token directly.
+    Request a password reset email.
+
+    Always returns the same response regardless of whether the email exists,
+    to prevent account enumeration. The reset link is sent by background task
+    so the response is immediate. If SMTP is not configured, the link is
+    printed to the server console instead.
     """
+    _SAFE_RESPONSE = {"message": "If an account exists with this email, a password reset link has been sent."}
+
     user = db.query(User).filter(
         User.email == request.email,
         User.deleted_at.is_(None)
     ).first()
 
-    # Always return success to prevent email enumeration
-    if not user:
-        return {"message": "If an account exists with this email, a password reset link has been sent."}
+    if not user or not user.is_active:
+        return _SAFE_RESPONSE
 
-    if not user.is_active:
-        return {"message": "If an account exists with this email, a password reset link has been sent."}
-
-    # Create password reset token
+    # Create password reset token (JWT, 1-hour expiry)
     reset_token = create_password_reset_token(user.id)
 
-    # Log password reset request
-    audit_log = AuditLog(
+    # Log the request
+    db.add(AuditLog(
         user_id=user.id,
         action="password_reset_requested",
         resource_type="user",
-        resource_id=user.id
-    )
-    db.add(audit_log)
+        resource_id=user.id,
+    ))
     db.commit()
 
-    # In production: Send email with reset link
-    # For development: Return the token (remove in production!)
-    return {
-        "message": "If an account exists with this email, a password reset link has been sent.",
-        "reset_token": reset_token  # Remove this in production!
-    }
+    # Send the email in the background so the response is instant
+    background_tasks.add_task(send_password_reset_email, user.email, reset_token)
+
+    return _SAFE_RESPONSE
 
 
 @router.post("/reset-password")

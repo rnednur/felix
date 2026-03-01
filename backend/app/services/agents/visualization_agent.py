@@ -190,7 +190,7 @@ class VisualizationAgent(BaseAgent):
                 'x_field': text_cols[0]['name'],
                 'y_field': numeric_cols[0]['name'],
                 'explanation': f"Bar chart comparing {numeric_cols[0]['name']} by {text_cols[0]['name']}",
-                'sql_query': f"SELECT {text_cols[0]['name']}, SUM({numeric_cols[0]['name']}) as total FROM dataset GROUP BY {text_cols[0]['name']} ORDER BY total DESC LIMIT 20"
+                'sql_query': f"SELECT {text_cols[0]['name']}, SUM({numeric_cols[0]['name']}) as total FROM dataset GROUP BY {text_cols[0]['name']} ORDER BY total DESC LIMIT 1000"
             }
 
         # Scatter plot for correlation
@@ -210,7 +210,7 @@ class VisualizationAgent(BaseAgent):
                 'x_field': text_cols[0]['name'],
                 'y_field': numeric_cols[0]['name'],
                 'explanation': f"Bar chart of {numeric_cols[0]['name']} by {text_cols[0]['name']}",
-                'sql_query': f"SELECT {text_cols[0]['name']}, SUM({numeric_cols[0]['name']}) as total FROM dataset GROUP BY {text_cols[0]['name']} LIMIT 20"
+                'sql_query': f"SELECT {text_cols[0]['name']}, SUM({numeric_cols[0]['name']}) as total FROM dataset GROUP BY {text_cols[0]['name']} LIMIT 1000"
             }
 
         # Fallback

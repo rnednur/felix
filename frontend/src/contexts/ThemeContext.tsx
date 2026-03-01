@@ -37,6 +37,10 @@ export interface ThemeContextType {
   applyTheme: (palette: ThemePalette) => void
   clearTheme: () => void
 
+  // Dark mode
+  darkMode: boolean
+  toggleDarkMode: () => void
+
   // Loading state
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
@@ -47,6 +51,7 @@ export interface ThemeContextType {
 }
 
 const PERSONA_STORAGE_KEY = 'dashboard-theme-persona'
+const DARK_MODE_STORAGE_KEY = 'felix-dark-mode'
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
@@ -55,6 +60,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [persona, setPersonaState] = useState<ThemePersona>(getDefaultTheme())
   const [extractedColors, setExtractedColors] = useState<ExtractedColor[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [darkMode, setDarkMode] = useState<boolean>(
+    () => localStorage.getItem(DARK_MODE_STORAGE_KEY) === 'true'
+  )
 
   // Apply persona CSS variables to document
   const applyPersona = useCallback((p: ThemePersona) => {
@@ -109,6 +117,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Apply default theme on first load
     applyPersona(getDefaultTheme())
   }, [applyPersona])
+
+  // Apply saved dark mode on mount and whenever darkMode state changes
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [darkMode])
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode(prev => {
+      const next = !prev
+      localStorage.setItem(DARK_MODE_STORAGE_KEY, String(next))
+      return next
+    })
+  }, [])
 
   // Apply legacy CSS variables to document (for image-extracted themes)
   const applyTheme = useCallback((palette: ThemePalette) => {
@@ -246,6 +271,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       personas: THEME_PRESETS,
       applyTheme,
       clearTheme,
+      darkMode,
+      toggleDarkMode,
       isLoading,
       setIsLoading,
       extractedColors,

@@ -4,7 +4,7 @@ import { VegaChart } from '@/components/visualization/VegaChart'
 import { ChartFilterButton } from '@/components/filters/ChartFilterButton'
 import { useFilters } from '@/contexts/FilterContext'
 import { useTheme } from '@/contexts/ThemeContext'
-import { applyFiltersToSpec } from '@/lib/vegaFilters'
+import { applyFiltersToSpec, applyCrossfilterToSpec } from '@/lib/vegaFilters'
 import { Edit2, Check, Minimize2, Square, Maximize2, RectangleHorizontal, Trash2 } from 'lucide-react'
 import { CardBadge } from '@/components/ui/card-badge'
 
@@ -39,17 +39,22 @@ export function ChartItem({ content, chartId, chartIndex, onTitleChange, onSizeC
   const [isEditing, setIsEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState(title || `${chartType} Chart`)
 
-  // Get filters from context
-  const { getFiltersForChart } = useFilters()
+  // Get filters and crossfilter from context
+  const { getFiltersForChart, crossfilterSelection, setCrossfilterSelection, clearCrossfilterSelection } = useFilters()
   const filters = chartId ? getFiltersForChart(chartId) : {}
 
-  // Apply filters to the Vega spec
+  // Is this chart the source of the active crossfilter?
+  const isCrossfilterSource = !!chartId && crossfilterSelection?.sourceChartId === chartId
+
+  // Apply regular filters then crossfilter opacity to the Vega spec
   const filteredSpec = useMemo(() => {
-    if (!vegaSpec || Object.keys(filters).length === 0) {
-      return vegaSpec
+    let s = vegaSpec
+    if (s && Object.keys(filters).length > 0) {
+      s = applyFiltersToSpec(s, filters)
     }
-    return applyFiltersToSpec(vegaSpec, filters)
-  }, [vegaSpec, filters])
+    s = applyCrossfilterToSpec(s, crossfilterSelection ?? null, chartId)
+    return s
+  }, [vegaSpec, filters, crossfilterSelection, chartId])
 
   // Chart data for filter options
   const chartData = data || vegaSpec?.data?.values || []
@@ -205,11 +210,30 @@ export function ChartItem({ content, chartId, chartIndex, onTitleChange, onSizeC
 
       {/* Chart - fill container for responsive Vega-Lite */}
       <div
-        className="flex-1 p-5 min-h-0"
+        className="flex-1 p-5 min-h-0 relative"
         style={{ backgroundColor: chartBgColor }}
       >
-        <div className="w-full h-full">
-          <VegaChart spec={filteredSpec} />
+        {/* Crossfilter source indicator */}
+        {isCrossfilterSource && (
+          <div
+            className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
+            style={{
+              backgroundColor: persona.isDark ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.1)',
+              color: '#6366f1',
+              border: '1px solid rgba(99,102,241,0.3)'
+            }}
+            title="Filtering other charts — double-click to clear"
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+            Filtering
+          </div>
+        )}
+        <div className="w-full h-full" style={{ cursor: chartId ? 'pointer' : 'default' }}>
+          <VegaChart
+            spec={filteredSpec}
+            onCrossfilterSelect={chartId ? (field, value) => setCrossfilterSelection(chartId, field, value) : undefined}
+            onCrossfilterClear={clearCrossfilterSelection}
+          />
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@
  * Functions to apply filters to Vega-Lite specifications.
  * Filters are applied as transform operations on the data.
  */
-import { FilterState, FilterValue } from '@/contexts/FilterContext'
+import { FilterState, FilterValue, CrossfilterSelection } from '@/contexts/FilterContext'
 
 /**
  * Apply filters to a Vega-Lite specification.
@@ -199,4 +199,84 @@ export function getUniqueValues(data: any[], column: string): any[] {
 export function getColumnNames(data: any[]): string[] {
   if (!data || data.length === 0) return []
   return Object.keys(data[0])
+}
+
+/**
+ * Apply a crossfilter selection to a Vega-Lite spec.
+ *
+ * When a user clicks a data point on another chart, this dims non-matching
+ * data points in this chart by adding a conditional opacity encoding.
+ * The source chart (the one clicked) is left unchanged.
+ *
+ * @param spec - Vega-Lite specification to modify
+ * @param crossfilter - The active crossfilter selection, or null
+ * @param thisChartId - The ID of the chart being rendered
+ * @returns Modified spec with conditional opacity, or original spec unchanged
+ */
+export function applyCrossfilterToSpec(
+  spec: any,
+  crossfilter: CrossfilterSelection | null,
+  thisChartId: string | undefined
+): any {
+  // No active crossfilter or no chart ID — nothing to do
+  if (!crossfilter || !thisChartId) return spec
+
+  // The source chart keeps full opacity — only other charts are dimmed
+  if (crossfilter.sourceChartId === thisChartId) return spec
+
+  // No spec — nothing to do
+  if (!spec) return spec
+
+  const { field, value } = crossfilter
+
+  // Build the Vega expression test string
+  // Escape string values in quotes; numbers/booleans used directly
+  const valueExpr = typeof value === 'string'
+    ? `'${value.replace(/'/g, "\\'")}'`
+    : String(value)
+  const testExpr = `datum['${field}'] == ${valueExpr}`
+
+  const opacityEncoding = {
+    condition: { test: testExpr, value: 1 },
+    value: 0.15
+  }
+
+  return injectOpacityIntoSpec(JSON.parse(JSON.stringify(spec)), opacityEncoding)
+}
+
+/**
+ * Recursively inject a conditional opacity encoding into a Vega-Lite spec.
+ * Handles single specs, layered specs, and concatenated specs.
+ */
+function injectOpacityIntoSpec(spec: any, opacityEncoding: any): any {
+  // Layered spec: apply to each layer
+  if (spec.layer) {
+    spec.layer = spec.layer.map((layer: any) => injectOpacityIntoSpec(layer, opacityEncoding))
+    return spec
+  }
+
+  // Concatenated specs: recurse into each
+  if (spec.concat) {
+    spec.concat = spec.concat.map((s: any) => injectOpacityIntoSpec(s, opacityEncoding))
+    return spec
+  }
+  if (spec.hconcat) {
+    spec.hconcat = spec.hconcat.map((s: any) => injectOpacityIntoSpec(s, opacityEncoding))
+    return spec
+  }
+  if (spec.vconcat) {
+    spec.vconcat = spec.vconcat.map((s: any) => injectOpacityIntoSpec(s, opacityEncoding))
+    return spec
+  }
+
+  // Single mark spec: add opacity to encoding
+  if (spec.mark || spec.encoding) {
+    if (!spec.encoding) spec.encoding = {}
+    // Only inject if no opacity encoding is already present
+    if (!spec.encoding.opacity) {
+      spec.encoding.opacity = opacityEncoding
+    }
+  }
+
+  return spec
 }

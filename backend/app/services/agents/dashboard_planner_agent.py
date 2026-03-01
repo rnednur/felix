@@ -53,25 +53,42 @@ logger = logging.getLogger(__name__)
 def make_json_serializable(obj: Any) -> Any:
     """
     Recursively convert non-JSON-serializable objects to serializable formats.
-    Handles Pandas Timestamps, numpy types, datetime objects, etc.
+    Handles Pandas Timestamps, numpy types, datetime objects, NaN, Inf, etc.
     """
     import pandas as pd
     import numpy as np
+    import math
 
     if obj is None:
         return None
-    elif isinstance(obj, (str, int, float, bool)):
+    elif isinstance(obj, bool):
+        # Check bool before int since bool is a subclass of int
+        return obj
+    elif isinstance(obj, str):
+        return obj
+    elif isinstance(obj, float):
+        # Handle NaN and Inf values which are not valid JSON
+        if math.isnan(obj):
+            return None
+        elif math.isinf(obj):
+            return None  # Or could use a large number like 1e308
+        return obj
+    elif isinstance(obj, int):
         return obj
     elif isinstance(obj, (datetime, pd.Timestamp)):
         return obj.isoformat()
     elif isinstance(obj, (np.integer,)):
         return int(obj)
     elif isinstance(obj, (np.floating,)):
-        return float(obj)
+        # Handle numpy NaN and Inf
+        val = float(obj)
+        if math.isnan(val) or math.isinf(val):
+            return None
+        return val
     elif isinstance(obj, (np.bool_,)):
         return bool(obj)
     elif isinstance(obj, np.ndarray):
-        return obj.tolist()
+        return make_json_serializable(obj.tolist())
     elif isinstance(obj, dict):
         return {k: make_json_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, (list, tuple)):
@@ -79,7 +96,7 @@ def make_json_serializable(obj: Any) -> Any:
     elif hasattr(obj, 'isoformat'):  # datetime-like objects
         return obj.isoformat()
     elif hasattr(obj, 'tolist'):  # numpy arrays
-        return obj.tolist()
+        return make_json_serializable(obj.tolist())
     elif hasattr(obj, '__dict__'):
         return make_json_serializable(obj.__dict__)
     else:
@@ -867,7 +884,7 @@ Return ONLY the JSON array, no other text."""
                 WHERE "{chart.x_field}" IS NOT NULL
                 GROUP BY "{chart.x_field}"
                 ORDER BY value DESC
-                LIMIT 50
+                LIMIT 1000
             '''
 
         if chart.y_field:
@@ -996,7 +1013,7 @@ Return ONLY the JSON array, no other text."""
                 WHERE "{group_col}" IS NOT NULL
                 GROUP BY "{group_col}"
                 ORDER BY row_count DESC
-                LIMIT 20
+                LIMIT 1000
             '''
 
             result_df = self.duckdb_service.execute_query(query, dataset_id=dataset_id)
@@ -1103,15 +1120,14 @@ Return ONLY the JSON array."""
             if not sample_data:
                 return None
 
-            # Use spatial service to detect columns
-            spatial_info = self.spatial_service.detect_spatial_columns(sample_data)
+            # Use spatial service to detect columns (pass DataFrame, not list)
+            spatial_info = self.spatial_service.detect_spatial_columns(sample_df)
 
             if spatial_info and spatial_info.get('type') == 'coordinates':
                 # Generate Kepler.gl config
                 config = self.spatial_service.generate_kepler_config(
-                    sample_data,
-                    spatial_info['columns']['lat'],
-                    spatial_info['columns']['lng']
+                    spatial_info,
+                    sample_df
                 )
                 spatial_info['default_config'] = config
 

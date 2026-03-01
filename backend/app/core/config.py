@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     PYTHON_MAX_MEMORY_MB: int = 1024
     ENABLE_PYTHON_EXECUTION: bool = True
 
+    # Email / SMTP settings (optional — if not set, reset links are logged to console)
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+    EMAIL_FROM_ADDRESS: str = "noreply@example.com"
+    EMAIL_FROM_NAME: str = "Felix Analytics"
+    FRONTEND_URL: str = "http://localhost:5173"  # Used to build reset password links
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # Ignore extra env vars like HF_HUB_OFFLINE

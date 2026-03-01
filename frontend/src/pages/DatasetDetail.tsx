@@ -14,7 +14,8 @@ import { CanvasWorkspace } from '@/components/canvas/CanvasWorkspace'
 import { useAGUIStream } from '@/hooks/useAGUIStream'
 import { CanvasItem } from '@/types/canvas'
 import { DatasetHub } from '@/components/dataset-hub/DatasetHub'
-import { MapView } from '@/components/map/MapView'
+import { InteractiveMapView } from '@/components/map/InteractiveMapView'
+import { MapAIBar } from '@/components/map/MapAIBar'
 import { CodePreviewModal } from '@/components/python/CodePreviewModal'
 import { DatasetOverviewModal } from '@/components/datasets/DatasetOverviewModal'
 import { DatasetSettingsPanel } from '@/components/metadata/DatasetSettingsPanel'
@@ -28,7 +29,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles, Map as MapIcon, LayoutDashboard } from 'lucide-react'
-import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, chatWithAgent, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult, type AgentResponse } from '@/services/api'
+import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, chatWithAgent, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult, type AgentResponse, type QueryResult } from '@/services/api'
 import axios from '@/services/api'
 
 interface Message {
@@ -59,9 +60,22 @@ export default function DatasetDetail() {
       localStorage.setItem('lastViewedDatasetId', id)
     }
   }, [id])
+
   const [messages, setMessages] = useState<Message[]>([])
   const [currentView, setCurrentView] = useState<'hub' | 'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas' | 'map'>('hub')
   const [queryResult, setQueryResult] = useState<any>(null)
+  const [mapQueryResult, setMapQueryResult] = useState<QueryResult | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Clear map AI result when navigating to a different dataset
+  useEffect(() => {
+    setMapQueryResult(null)
+  }, [id])
+
+  // Auto-collapse chat sidebar on map tab (AI bar is the query interface there)
+  useEffect(() => {
+    setSidebarCollapsed(currentView === 'map')
+  }, [currentView])
 
   // Canvas mode state
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
@@ -878,8 +892,10 @@ export default function DatasetDetail() {
       const insights = generateInsights(result, query)
       setMessages((prev) => [...prev, { role: 'assistant', content: insights }])
 
-      // Switch to dashboard view to show results
-      setCurrentView('dashboard')
+      // Switch to dashboard view to show results (stay on map if already there)
+      if (currentView !== 'map') {
+        setCurrentView('dashboard')
+      }
     } catch (error: any) {
       const errorMsg = error.response?.data?.detail || error.message
 
@@ -1178,6 +1194,8 @@ export default function DatasetDetail() {
       )}
 
       <DataWorkspaceLayout
+        isSidebarCollapsed={sidebarCollapsed}
+        onSidebarCollapsedChange={setSidebarCollapsed}
         sidebar={
           <ChatSidebar
             datasetId={id}
@@ -1641,55 +1659,64 @@ export default function DatasetDetail() {
             )}
           </TabsContent>
 
-          {/* Map View - Kepler.gl visualization */}
+          {/* Map View - Interactive full-screen map with AI overlay */}
           <TabsContent value="map" className="flex-1 m-0 overflow-hidden">
-            {spatialColumns ? (
-              <div className="relative h-full">
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[999] flex gap-2">
-                  {queryResult && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => setQueryResult(null)}
-                      className="shadow-xl bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
-                    >
-                      Reset Filter
-                    </Button>
-                  )}
+            <div className="relative h-full w-full">
+              {/* Show the map whenever we have spatial columns OR a query result with data.
+                  InteractiveMapView auto-detects lat/lng column names from the actual data. */}
+              {(spatialColumns || mapQueryResult?.rows?.length) ? (
+                <InteractiveMapView
+                  datasetId={id!}
+                  data={mapQueryResult?.rows || (showAllMapPoints && allRows ? allRows.rows : preview?.rows) || []}
+                  spatialColumns={spatialColumns ?? { lat: 'latitude', lng: 'longitude' }}
+                  config={mapConfig}
+                  chartRows={mapQueryResult?.rows}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                  <MapIcon className="h-16 w-16 mb-4 text-gray-300" />
+                  <p className="text-lg font-medium">No spatial data detected</p>
+                  <p className="text-sm mt-2 text-center max-w-xs">
+                    This dataset doesn't have latitude/longitude columns.
+                    Use the AI bar below to extract or filter by location.
+                  </p>
+                </div>
+              )}
+
+              {/* AI bar is always visible so users can query even on non-spatial datasets */}
+              <MapAIBar
+                datasetId={id!}
+                onQueryResult={setMapQueryResult}
+                currentResult={mapQueryResult}
+                totalRows={dataset?.row_count}
+                spatialColumns={spatialColumns ?? undefined}
+              />
+
+              {/* All Points toggle — sits above the AI bar, only useful when base data has spatial */}
+              {spatialColumns && (
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowAllMapPoints(!showAllMapPoints)}
                     disabled={isLoadingAllRows}
-                    className={`shadow-xl border border-gray-300 ${
+                    className={`shadow-xl border text-xs backdrop-blur-sm ${
                       showAllMapPoints
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-white text-gray-700 hover:bg-gray-100'
+                        ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
+                        : 'bg-card/90 text-foreground border-border hover:bg-accent'
                     }`}
                   >
                     {isLoadingAllRows ? (
                       <>Loading...</>
                     ) : showAllMapPoints ? (
-                      <>✓ All Points ({dataset?.row_count.toLocaleString()})</>
+                      <>All {dataset?.row_count?.toLocaleString()} rows</>
                     ) : (
-                      <>Preview (100)</>
+                      <>Preview 100 rows</>
                     )}
                   </Button>
                 </div>
-                <MapView
-                  datasetId={id!}
-                  data={queryResult?.rows || (showAllMapPoints && allRows ? allRows.rows : preview?.rows) || []}
-                  spatialColumns={spatialColumns}
-                  config={mapConfig}
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                <MapIcon className="h-16 w-16 mb-4 text-gray-300" />
-                <p className="text-lg font-medium">No spatial data detected</p>
-                <p className="text-sm mt-2">This dataset doesn't have latitude/longitude columns</p>
-              </div>
-            )}
+              )}
+            </div>
           </TabsContent>
           </Tabs>
         )}
