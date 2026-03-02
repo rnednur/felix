@@ -57,6 +57,148 @@ const COUNTRY_CENTROIDS: Record<string, [number, number]> = {
   'Zimbabwe': [-19.0154, 29.1549],
 }
 
+// US State centroids — full names and 2-letter abbreviations
+const US_STATE_CENTROIDS: Record<string, [number, number]> = {
+  'Alabama': [32.806671, -86.791130], 'Alaska': [61.370716, -152.404419],
+  'Arizona': [33.729759, -111.431221], 'Arkansas': [34.969704, -92.373123],
+  'California': [36.116203, -119.681564], 'Colorado': [39.059811, -105.311104],
+  'Connecticut': [41.597782, -72.755371], 'Delaware': [39.318523, -75.507141],
+  'Florida': [27.766279, -81.686783], 'Georgia': [33.040619, -83.643074],
+  'Hawaii': [21.094318, -157.498337], 'Idaho': [44.240459, -114.478828],
+  'Illinois': [40.349457, -88.986137], 'Indiana': [39.849426, -86.258278],
+  'Iowa': [42.011539, -93.210526], 'Kansas': [38.526600, -96.726486],
+  'Kentucky': [37.668140, -84.670067], 'Louisiana': [31.169960, -91.867805],
+  'Maine': [44.693947, -69.381927], 'Maryland': [39.063946, -76.802101],
+  'Massachusetts': [42.230171, -71.530106], 'Michigan': [43.326618, -84.536095],
+  'Minnesota': [45.694454, -93.900192], 'Mississippi': [32.741646, -89.678696],
+  'Missouri': [38.456085, -92.288368], 'Montana': [46.921925, -110.454353],
+  'Nebraska': [41.125370, -98.268082], 'Nevada': [38.313515, -117.055374],
+  'New Hampshire': [43.452492, -71.563896], 'New Jersey': [40.298904, -74.521011],
+  'New Mexico': [34.840515, -106.248482], 'New York': [42.165726, -74.948051],
+  'North Carolina': [35.630066, -79.806419], 'North Dakota': [47.528912, -99.784012],
+  'Ohio': [40.388783, -82.764915], 'Oklahoma': [35.565342, -96.928917],
+  'Oregon': [44.572021, -122.070938], 'Pennsylvania': [40.590752, -77.209755],
+  'Rhode Island': [41.680893, -71.511780], 'South Carolina': [33.856892, -80.945007],
+  'South Dakota': [44.299782, -99.438828], 'Tennessee': [35.747845, -86.692345],
+  'Texas': [31.054487, -97.563461], 'Utah': [40.150032, -111.862434],
+  'Vermont': [44.045876, -72.710686], 'Virginia': [37.769337, -78.169968],
+  'Washington': [47.400902, -121.490494], 'West Virginia': [38.491226, -80.954453],
+  'Wisconsin': [44.268543, -89.616508], 'Wyoming': [42.755966, -107.302490],
+  'District of Columbia': [38.897438, -77.026817],
+}
+// Abbreviation aliases
+const US_STATE_ABBREVS: Record<string, string> = {
+  'AL':'Alabama','AK':'Alaska','AZ':'Arizona','AR':'Arkansas','CA':'California',
+  'CO':'Colorado','CT':'Connecticut','DE':'Delaware','FL':'Florida','GA':'Georgia',
+  'HI':'Hawaii','ID':'Idaho','IL':'Illinois','IN':'Indiana','IA':'Iowa',
+  'KS':'Kansas','KY':'Kentucky','LA':'Louisiana','ME':'Maine','MD':'Maryland',
+  'MA':'Massachusetts','MI':'Michigan','MN':'Minnesota','MS':'Mississippi',
+  'MO':'Missouri','MT':'Montana','NE':'Nebraska','NV':'Nevada','NH':'New Hampshire',
+  'NJ':'New Jersey','NM':'New Mexico','NY':'New York','NC':'North Carolina',
+  'ND':'North Dakota','OH':'Ohio','OK':'Oklahoma','OR':'Oregon','PA':'Pennsylvania',
+  'RI':'Rhode Island','SC':'South Carolina','SD':'South Dakota','TN':'Tennessee',
+  'TX':'Texas','UT':'Utah','VT':'Vermont','VA':'Virginia','WA':'Washington',
+  'WV':'West Virginia','WI':'Wisconsin','WY':'Wyoming','DC':'District of Columbia',
+}
+function lookupStateCentroid(name: string): [number, number] | undefined {
+  return US_STATE_CENTROIDS[name] ?? US_STATE_CENTROIDS[US_STATE_ABBREVS[name] ?? '']
+}
+
+// Major world city centroids (~150 cities across all continents)
+const CITY_CENTROIDS: Record<string, [number, number]> = {
+  // North America
+  'New York': [40.7128, -74.0060], 'Los Angeles': [34.0522, -118.2437],
+  'Chicago': [41.8781, -87.6298], 'Houston': [29.7604, -95.3698],
+  'Phoenix': [33.4484, -112.0740], 'Philadelphia': [39.9526, -75.1652],
+  'San Antonio': [29.4241, -98.4936], 'San Diego': [32.7157, -117.1611],
+  'Dallas': [32.7767, -96.7970], 'San Jose': [37.3382, -121.8863],
+  'Austin': [30.2672, -97.7431], 'Jacksonville': [30.3322, -81.6557],
+  'San Francisco': [37.7749, -122.4194], 'Seattle': [47.6062, -122.3321],
+  'Denver': [39.7392, -104.9903], 'Washington': [38.9072, -77.0369],
+  'Nashville': [36.1627, -86.7816], 'Boston': [42.3601, -71.0589],
+  'Portland': [45.5051, -122.6750], 'Atlanta': [33.7490, -84.3880],
+  'Miami': [25.7617, -80.1918], 'Minneapolis': [44.9778, -93.2650],
+  'Toronto': [43.6532, -79.3832], 'Montreal': [45.5017, -73.5673],
+  'Vancouver': [49.2827, -123.1207], 'Calgary': [51.0447, -114.0719],
+  'Mexico City': [19.4326, -99.1332], 'Guadalajara': [20.6597, -103.3496],
+  'Monterrey': [25.6866, -100.3161],
+  // South America
+  'São Paulo': [-23.5505, -46.6333], 'Rio de Janeiro': [-22.9068, -43.1729],
+  'Buenos Aires': [-34.6037, -58.3816], 'Lima': [-12.0464, -77.0428],
+  'Bogotá': [4.7110, -74.0721], 'Santiago': [-33.4489, -70.6693],
+  'Caracas': [10.4806, -66.9036], 'Quito': [-0.1807, -78.4678],
+  'La Paz': [-16.5000, -68.1500],
+  // Europe
+  'London': [51.5074, -0.1278], 'Paris': [48.8566, 2.3522],
+  'Berlin': [52.5200, 13.4050], 'Madrid': [40.4168, -3.7038],
+  'Rome': [41.9028, 12.4964], 'Vienna': [48.2082, 16.3738],
+  'Amsterdam': [52.3676, 4.9041], 'Brussels': [50.8503, 4.3517],
+  'Stockholm': [59.3293, 18.0686], 'Oslo': [59.9139, 10.7522],
+  'Copenhagen': [55.6761, 12.5683], 'Helsinki': [60.1699, 24.9384],
+  'Warsaw': [52.2297, 21.0122], 'Prague': [50.0755, 14.4378],
+  'Budapest': [47.4979, 19.0402], 'Bucharest': [44.4268, 26.1025],
+  'Athens': [37.9838, 23.7275], 'Lisbon': [38.7169, -9.1399],
+  'Zurich': [47.3769, 8.5417], 'Dublin': [53.3498, -6.2603],
+  'Munich': [48.1351, 11.5820], 'Milan': [45.4654, 9.1859],
+  'Barcelona': [41.3851, 2.1734], 'Kyiv': [50.4501, 30.5234],
+  'Moscow': [55.7558, 37.6176], 'Saint Petersburg': [59.9343, 30.3351],
+  'Istanbul': [41.0082, 28.9784], 'Minsk': [53.9045, 27.5615],
+  // Africa
+  'Cairo': [30.0444, 31.2357], 'Lagos': [6.5244, 3.3792],
+  'Kinshasa': [-4.4419, 15.2663], 'Johannesburg': [-26.2041, 28.0473],
+  'Cape Town': [-33.9249, 18.4241], 'Nairobi': [-1.2921, 36.8219],
+  'Addis Ababa': [9.0320, 38.7421], 'Dar es Salaam': [-6.7924, 39.2083],
+  'Casablanca': [33.5731, -7.5898], 'Accra': [5.6037, -0.1870],
+  'Dakar': [14.7167, -17.4677], 'Tunis': [36.8190, 10.1658],
+  'Algiers': [36.7372, 3.0869], 'Khartoum': [15.5007, 32.5599],
+  // Asia
+  'Tokyo': [35.6762, 139.6503], 'Shanghai': [31.2304, 121.4737],
+  'Beijing': [39.9042, 116.4074], 'Delhi': [28.7041, 77.1025],
+  'Mumbai': [19.0760, 72.8777], 'Dhaka': [23.8103, 90.4125],
+  'Karachi': [24.8607, 67.0011], 'Bangkok': [13.7563, 100.5018],
+  'Jakarta': [-6.2088, 106.8456], 'Manila': [14.5995, 120.9842],
+  'Seoul': [37.5665, 126.9780], 'Osaka': [34.6937, 135.5023],
+  'Taipei': [25.0330, 121.5654], 'Kuala Lumpur': [3.1390, 101.6869],
+  'Singapore': [1.3521, 103.8198], 'Ho Chi Minh City': [10.8231, 106.6297],
+  'Hanoi': [21.0278, 105.8342], 'Phnom Penh': [11.5564, 104.9282],
+  'Yangon': [16.8661, 96.1951], 'Kolkata': [22.5726, 88.3639],
+  'Chennai': [13.0827, 80.2707], 'Bangalore': [12.9716, 77.5946],
+  'Lahore': [31.5204, 74.3587], 'Colombo': [6.9271, 79.8612],
+  'Tehran': [35.6892, 51.3890], 'Baghdad': [33.3152, 44.3661],
+  'Riyadh': [24.7136, 46.6753], 'Jeddah': [21.2854, 39.2376],
+  'Amman': [31.9454, 35.9284], 'Beirut': [33.8938, 35.5018],
+  'Tel Aviv': [32.0853, 34.7818], 'Dubai': [25.2048, 55.2708],
+  'Abu Dhabi': [24.4539, 54.3773], 'Doha': [25.2854, 51.5310],
+  'Kabul': [34.5553, 69.2075], 'Islamabad': [33.7294, 73.0931],
+  'Kathmandu': [27.7172, 85.3240], 'Ulaanbaatar': [47.8864, 106.9057],
+  'Tashkent': [41.2995, 69.2401], 'Almaty': [43.2220, 76.8512],
+  // Oceania
+  'Sydney': [-33.8688, 151.2093], 'Melbourne': [-37.8136, 144.9631],
+  'Brisbane': [-27.4698, 153.0251], 'Perth': [-31.9505, 115.8605],
+  'Auckland': [-36.8485, 174.7633], 'Wellington': [-41.2866, 174.7756],
+}
+
+// ─── GeoJSON boundary cache ───────────────────────────────────────────────────
+
+let _countriesGeoJSON: any = null
+let _usStatesGeoJSON: any = null
+
+async function fetchCountriesGeoJSON(): Promise<any> {
+  if (_countriesGeoJSON) return _countriesGeoJSON
+  const r = await fetch('https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/DATA/world.geojson')
+  if (!r.ok) throw new Error(`Countries GeoJSON fetch failed: ${r.status}`)
+  _countriesGeoJSON = await r.json()
+  return _countriesGeoJSON
+}
+
+async function fetchUSStatesGeoJSON(): Promise<any> {
+  if (_usStatesGeoJSON) return _usStatesGeoJSON
+  const r = await fetch('https://cdn.jsdelivr.net/gh/PublicaMundi/MappingAPI@master/data/geojson/us-states.json')
+  if (!r.ok) throw new Error(`US States GeoJSON fetch failed: ${r.status}`)
+  _usStatesGeoJSON = await r.json()
+  return _usStatesGeoJSON
+}
+
 // Detect which column contains country names by sampling values against the centroid lookup
 function findCountryColumn(data: any[], exclude: Set<string>): string | null {
   if (!data || data.length === 0) return null
@@ -170,13 +312,16 @@ function parseWKT(wkt: string): any | null {
 // ─── Spatial column type ─────────────────────────────────────────────────────
 
 export type SpatialColumns =
-  | { lat: string; lng: string; wkt?: undefined }
-  | { wkt: string; lat?: undefined; lng?: undefined }
+  | { lat: string; lng: string; wkt?: undefined; country?: undefined; state?: undefined; city?: undefined }
+  | { wkt: string; lat?: undefined; lng?: undefined; country?: undefined; state?: undefined; city?: undefined }
+  | { country: string; lat?: undefined; lng?: undefined; wkt?: undefined; state?: undefined; city?: undefined }
+  | { state: string; lat?: undefined; lng?: undefined; wkt?: undefined; country?: undefined; city?: undefined }
+  | { city: string; lat?: undefined; lng?: undefined; wkt?: undefined; country?: undefined; state?: undefined }
 
 interface InteractiveMapViewProps {
   datasetId: string
   data: any[]
-  spatialColumns: SpatialColumns | { lat?: string; lng?: string; wkt?: string }
+  spatialColumns: SpatialColumns | { lat?: string; lng?: string; wkt?: string; country?: string; state?: string; city?: string }
   config?: any
   onSaveConfig?: (config: any) => void
   chartRows?: any[]
@@ -201,8 +346,8 @@ const SPATIAL_EXCLUDE = new Set([
   'id', 'ID', 'uuid', 'UUID', 'created_at', 'updated_at',
 ])
 
-function makeExcludeSet(spatialColumns: { lat?: string; lng?: string; wkt?: string }): Set<string> {
-  const cols = [spatialColumns.lat, spatialColumns.lng, spatialColumns.wkt].filter(Boolean) as string[]
+function makeExcludeSet(spatialColumns: { lat?: string; lng?: string; wkt?: string; country?: string; state?: string; city?: string }): Set<string> {
+  const cols = [spatialColumns.lat, spatialColumns.lng, spatialColumns.wkt, spatialColumns.country, spatialColumns.state, spatialColumns.city].filter(Boolean) as string[]
   return new Set([...SPATIAL_EXCLUDE, ...cols])
 }
 
@@ -348,7 +493,87 @@ function buildGeojson(data: any[], spatialColumns: { lat?: string; lng?: string;
   return { type: 'FeatureCollection', features: [] }
 }
 
-function computeInitialViewState(data: any[], spatialColumns: { lat?: string; lng?: string; wkt?: string }) {
+function buildGeojsonFromCity(data: any[], cityCol: string): any {
+  const features = data.map((row, i) => {
+    const city = String(row[cityCol] ?? '').trim()
+    const centroid = CITY_CENTROIDS[city]
+    if (!centroid) return null
+    return {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [centroid[1] + indexJitter(i, 1, 0.05), centroid[0] + indexJitter(i, 0, 0.05)],
+      },
+      properties: { ...row },
+    }
+  }).filter(Boolean)
+  return { type: 'FeatureCollection', features }
+}
+
+function detectValueColumn(data: any[], excludeCols: Set<string>): string | null {
+  if (!data.length) return null
+  const first = data[0]
+  return Object.keys(first).find(c => !excludeCols.has(c) && typeof first[c] === 'number') ?? null
+}
+
+function buildChoroplethGeojson(
+  boundaryGeoJSON: any,
+  data: any[],
+  dataNameCol: string,
+  geoNameProp: string,
+  valueCol: string | null,
+): { geojson: any; minVal: number; maxVal: number; valueColName: string } {
+  // Build lookup: normalised lowercase name → summed value (or row count)
+  const lookup: Record<string, number> = {}
+  data.forEach(row => {
+    const name = String(row[dataNameCol] ?? '').trim().toLowerCase()
+    if (!name) return
+    const val = valueCol != null ? (parseFloat(String(row[valueCol])) || 0) : 1
+    lookup[name] = (lookup[name] ?? 0) + val
+  })
+
+  const vals = Object.values(lookup).filter(v => v > 0)
+  const minVal = vals.length ? Math.min(...vals) : 0
+  const maxVal = vals.length ? Math.max(...vals) : 1
+
+  const features = boundaryGeoJSON.features.map((f: any) => {
+    const geoName = String(f.properties?.[geoNameProp] ?? '').trim().toLowerCase()
+    const value = lookup[geoName] ?? null
+    return {
+      ...f,
+      properties: { ...f.properties, __value: value ?? 0, __hasData: value !== null },
+    }
+  })
+
+  return {
+    geojson: { ...boundaryGeoJSON, features },
+    minVal,
+    maxVal,
+    valueColName: valueCol ?? 'Count',
+  }
+}
+
+function computeInitialViewState(data: any[], spatialColumns: { lat?: string; lng?: string; wkt?: string; country?: string; state?: string; city?: string }) {
+  const sp = spatialColumns as any
+
+  // Geographic mode: use fixed world/US view for choropleth, compute bbox for cities
+  if (sp?.country) return { latitude: 20, longitude: 0, zoom: 2 }
+  if (sp?.state) return { latitude: 38, longitude: -96, zoom: 3 }
+  if (sp?.city) {
+    const lats: number[] = []
+    const lngs: number[] = []
+    data.forEach(row => {
+      const centroid = CITY_CENTROIDS[String(row[sp.city] ?? '').trim()]
+      if (centroid) { lats.push(centroid[0]); lngs.push(centroid[1]) }
+    })
+    if (lats.length === 0) return { latitude: 20, longitude: 0, zoom: 2 }
+    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2
+    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2
+    const span = Math.max(Math.max(...lats) - Math.min(...lats), Math.max(...lngs) - Math.min(...lngs))
+    const zoom = span < 0.5 ? 10 : span < 5 ? 6 : span < 50 ? 3 : 2
+    return { latitude: centerLat, longitude: centerLng, zoom }
+  }
+
   const lats: number[] = []
   const lngs: number[] = []
 
@@ -442,7 +667,7 @@ function getPreviewFields(
 const LAT_PATTERNS = ['lat', 'latitude']
 const LNG_PATTERNS = ['lng', 'lon', 'longitude', 'long']
 
-function detectSpatialColumnsFromData(data: any[]): { lat?: string; lng?: string; wkt?: string } | null {
+function detectSpatialColumnsFromData(data: any[]): { lat?: string; lng?: string; wkt?: string; country?: string; state?: string; city?: string } | null {
   if (!data.length) return null
   const cols = Object.keys(data[0])
 
@@ -456,6 +681,30 @@ function detectSpatialColumnsFromData(data: any[]): { lat?: string; lng?: string
     const sampleValues = data.slice(0, 5).map(r => String(r[col] ?? '')).filter(Boolean)
     const isWkt = sampleValues.some(v => WKT_KEYWORDS.some(kw => v.trim().toUpperCase().startsWith(kw)))
     if (isWkt) return { wkt: col }
+  }
+
+  // Third: country column (name hint + value sampling)
+  const countryPatterns = ['country', 'nation', 'country_name', 'country name']
+  const countryCol = cols.find(c => countryPatterns.includes(c.toLowerCase()))
+  if (countryCol) {
+    const hits = data.slice(0, 20).filter(r => COUNTRY_CENTROIDS[String(r[countryCol] ?? '')]).length
+    if (hits >= 1) return { country: countryCol }
+  }
+
+  // Fourth: US state column (name hint + value sampling)
+  const statePatterns = ['state', 'state_name', 'province', 'state name']
+  const stateCol = cols.find(c => statePatterns.includes(c.toLowerCase()))
+  if (stateCol) {
+    const hits = data.slice(0, 20).filter(r => lookupStateCentroid(String(r[stateCol] ?? ''))).length
+    if (hits >= 1) return { state: stateCol }
+  }
+
+  // Fifth: city column (name hint + value sampling)
+  const cityPatterns = ['city', 'city_name', 'municipality', 'town', 'city name']
+  const cityCol = cols.find(c => cityPatterns.includes(c.toLowerCase()))
+  if (cityCol) {
+    const hits = data.slice(0, 20).filter(r => CITY_CENTROIDS[String(r[cityCol] ?? '')]).length
+    if (hits >= 1) return { city: cityCol }
   }
 
   return null
@@ -475,27 +724,35 @@ export function InteractiveMapView({
   // a WKT "Geolocation" column but the NL query extracted lat/lng as computed columns),
   // auto-detect from the real column names present in the data.
   const spatialColumns = useMemo(() => {
-    if (!data.length) return spatialColumnsProp as { lat?: string; lng?: string; wkt?: string }
+    const sp = spatialColumnsProp as any
+    if (!data.length) return sp
+
     const first = data[0]
 
     // WKT prop: check the wkt column actually exists in data
-    if (spatialColumnsProp?.wkt) {
-      if (spatialColumnsProp.wkt in first) return spatialColumnsProp as { wkt: string }
-    }
+    if (sp?.wkt && sp.wkt in first) return sp as { wkt: string }
 
     // Lat/lng prop: check both columns exist in data
-    if (spatialColumnsProp?.lat && spatialColumnsProp?.lng) {
-      const propLatExists = spatialColumnsProp.lat in first
-      const propLngExists = spatialColumnsProp.lng in first
-      if (propLatExists && propLngExists) return spatialColumnsProp as { lat: string; lng: string }
-    }
+    if (sp?.lat && sp?.lng && sp.lat in first && sp.lng in first) return sp as { lat: string; lng: string }
+
+    // Geographic column props: check column exists in data
+    if (sp?.country && sp.country in first) return sp as { country: string }
+    if (sp?.state && sp.state in first) return sp as { state: string }
+    if (sp?.city && sp.city in first) return sp as { city: string }
 
     // Fall back to auto-detection from actual column names/values
-    return detectSpatialColumnsFromData(data) ?? spatialColumnsProp as { lat?: string; lng?: string; wkt?: string }
+    return detectSpatialColumnsFromData(data) ?? sp
   }, [data, spatialColumnsProp])
 
   // Whether we're in WKT mode (affects clustering and layer setup)
   const isWktMode = !!spatialColumns?.wkt
+
+  // Geographic (country / state / city) mode helpers
+  const sc = spatialColumns as any
+  const isCountryMode    = !!sc?.country
+  const isStateMode      = !!sc?.state
+  const isCityMode       = !!sc?.city
+  const isChoroplethMode = isCountryMode || isStateMode
 
   const [popupInfo, setPopupInfo] = useState<PopupInfo | null>(null)
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
@@ -503,6 +760,10 @@ export function InteractiveMapView({
   const [showStatsPanel, setShowStatsPanel] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [chartOverlayClosed, setChartOverlayClosed] = useState(false)
+  const [choroplethData, setChoroplethData] = useState<{
+    geojson: any; minVal: number; maxVal: number; valueColName: string
+  } | null>(null)
+  const [geoLoadError, setGeoLoadError] = useState<string | null>(null)
 
   // Reset chart overlay visibility when a new query result arrives
   useEffect(() => {
@@ -510,6 +771,30 @@ export function InteractiveMapView({
       setChartOverlayClosed(false)
     }
   }, [chartRows])
+
+  // Fetch + join boundary GeoJSON for choropleth mode (country or state)
+  useEffect(() => {
+    if (!isChoroplethMode || !data.length) {
+      setChoroplethData(null)
+      return
+    }
+    setGeoLoadError(null)
+    setChoroplethData(null)
+    const nameCol: string = sc.country ?? sc.state
+    const excludeCols = makeExcludeSet(spatialColumns ?? {})
+    const valueCol = detectValueColumn(data, excludeCols)
+    const loader = isCountryMode ? fetchCountriesGeoJSON : fetchUSStatesGeoJSON
+    loader()
+      .then(boundary => {
+        const result = buildChoroplethGeojson(boundary, data, nameCol, 'name', valueCol)
+        setChoroplethData(result)
+      })
+      .catch(err => {
+        console.error('Failed to load boundary GeoJSON', err)
+        setGeoLoadError('Failed to load map boundaries')
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, isChoroplethMode, isCountryMode, sc?.country, sc?.state])
 
   // Skip fitBounds on initial mount — only fly when data changes from a query result
   const isInitialized = useRef(false)
@@ -519,6 +804,28 @@ export function InteractiveMapView({
       isInitialized.current = true
       return
     }
+
+    // City mode: fit to visible city centroids
+    if (isCityMode && sc?.city) {
+      const lats: number[] = []
+      const lngs: number[] = []
+      data.forEach(row => {
+        const centroid = CITY_CENTROIDS[String(row[sc.city] ?? '').trim()]
+        if (centroid) { lats.push(centroid[0]); lngs.push(centroid[1]) }
+      })
+      if (lats.length > 0) {
+        setTimeout(() => {
+          mapRef.current?.getMap()?.fitBounds(
+            [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+            { padding: 60, maxZoom: 10, duration: 800 }
+          )
+        }, 150)
+      }
+      return
+    }
+
+    // Choropleth mode: no fitBounds needed (fixed world/US view)
+    if (isChoroplethMode) return
 
     let lats: number[] = []
     let lngs: number[] = []
@@ -610,10 +917,17 @@ export function InteractiveMapView({
     [filteredData, spatialColumns]
   )
 
+  const cityGeojson = useMemo(
+    () => (isCityMode && sc?.city ? buildGeojsonFromCity(filteredData, sc.city) : null),
+    [filteredData, isCityMode, sc?.city]
+  )
+
   // ─── Map interactions ───────────────────────────────────────────────────────
 
   // Layers that respond to clicks/hover
-  const interactiveLayerIds = isWktMode
+  const interactiveLayerIds = isChoroplethMode
+    ? ['geo-fill']
+    : isWktMode
     ? ['wkt-polygon-fill', 'wkt-line', 'wkt-point']
     : ['clusters', 'unclustered-point']
 
@@ -622,6 +936,18 @@ export function InteractiveMapView({
     if (!features || features.length === 0) { setPopupInfo(null); return }
 
     const feature = features[0]
+
+    if (feature.layer?.id === 'geo-fill') {
+      // Strip internal choropleth properties before showing popup
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { __value: _v, __hasData, ...props } = feature.properties ?? {}
+      if (__hasData) {
+        setPopupInfo({ longitude: event.lngLat.lng, latitude: event.lngLat.lat, properties: props })
+      } else {
+        setPopupInfo(null)
+      }
+      return
+    }
 
     if (feature.layer?.id === 'clusters') {
       const clusterId = feature.properties?.cluster_id
@@ -657,10 +983,14 @@ export function InteractiveMapView({
 
   const handleMouseMove = useCallback((event: MapLayerMouseEvent) => {
     const features = (event as any).features as Array<{ layer?: { id?: string }; properties?: any }> | undefined
-    const interactiveLayers = new Set(['unclustered-point', 'wkt-point', 'wkt-polygon-fill', 'wkt-line'])
+    const interactiveLayers = new Set(['unclustered-point', 'wkt-point', 'wkt-polygon-fill', 'wkt-line', 'geo-fill'])
     const pts = features?.filter(f => f.layer?.id && interactiveLayers.has(f.layer.id))
     if (pts && pts.length > 0) {
-      setHoverInfo({ x: event.point.x, y: event.point.y, properties: pts[0].properties ?? {} })
+      // Strip choropleth internals from hover tooltip
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { __value: _v2, __hasData, ...visibleProps } = pts[0].properties ?? {}
+      if (pts[0].layer?.id === 'geo-fill' && !__hasData) { setHoverInfo(null); return }
+      setHoverInfo({ x: event.point.x, y: event.point.y, properties: visibleProps })
     } else {
       setHoverInfo(null)
     }
@@ -704,7 +1034,11 @@ export function InteractiveMapView({
     )
   }
 
-  const pointCount = geojson.features.length
+  const pointCount = isChoroplethMode
+    ? filteredData.length
+    : isCityMode
+    ? (cityGeojson?.features?.length ?? 0)
+    : geojson.features.length
   const titleField = popupInfo ? getTitleField(popupInfo.properties, spatialColumns ?? {}) : ''
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -725,7 +1059,80 @@ export function InteractiveMapView({
       >
         <NavigationControl position="bottom-right" />
 
-        {isWktMode ? (
+        {isChoroplethMode && choroplethData ? (
+          /* ── Choropleth: country or US state polygons ── */
+          <Source id="geo-boundaries" type="geojson" data={choroplethData.geojson}>
+            <Layer
+              id="geo-fill"
+              type="fill"
+              paint={{
+                'fill-color': [
+                  'case', ['==', ['get', '__hasData'], true] as any,
+                  ['interpolate', ['linear'], ['get', '__value'],
+                    choroplethData.minVal === choroplethData.maxVal ? choroplethData.minVal - 1 : choroplethData.minVal, '#dbeafe',
+                    choroplethData.minVal === choroplethData.maxVal ? choroplethData.maxVal + 1 : choroplethData.maxVal, '#1d4ed8',
+                  ] as any,
+                  '#e5e7eb',
+                ] as any,
+                'fill-opacity': 0.75,
+              }}
+            />
+            <Layer
+              id="geo-outline"
+              type="line"
+              paint={{ 'line-color': '#9ca3af', 'line-width': 0.5, 'line-opacity': 0.8 }}
+            />
+          </Source>
+        ) : isCityMode && cityGeojson ? (
+          /* ── City centroid points (clustered) ── */
+          <Source
+            id="points"
+            type="geojson"
+            data={cityGeojson}
+            cluster={true}
+            clusterMaxZoom={14}
+            clusterRadius={50}
+          >
+            <Layer
+              id="clusters"
+              type="circle"
+              filter={['has', 'point_count']}
+              paint={{
+                'circle-color': [
+                  'step', ['get', 'point_count'],
+                  '#6366f1', 10, '#3b82f6', 100, '#0ea5e9',
+                ] as any,
+                'circle-radius': ['step', ['get', 'point_count'], 20, 10, 30, 100, 40] as any,
+                'circle-stroke-width': 3,
+                'circle-stroke-color': '#fff',
+                'circle-opacity': 0.9,
+              }}
+            />
+            <Layer
+              id="cluster-count"
+              type="symbol"
+              filter={['has', 'point_count']}
+              layout={{
+                'text-field': '{point_count_abbreviated}',
+                'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                'text-size': 13,
+              }}
+              paint={{ 'text-color': '#fff' }}
+            />
+            <Layer
+              id="unclustered-point"
+              type="circle"
+              filter={['!', ['has', 'point_count']]}
+              paint={{
+                'circle-color': categoryColorExpression,
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 14, 10] as any,
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#fff',
+                'circle-opacity': 0.9,
+              }}
+            />
+          </Source>
+        ) : isWktMode ? (
           /* ── WKT geometry source (no clustering) ── */
           <Source
             id="wkt-features"
@@ -945,6 +1352,24 @@ export function InteractiveMapView({
             <span className="hidden sm:inline">Geometry</span>
           </div>
         )}
+        {isChoroplethMode && (
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium shadow-md border
+                          bg-card/90 text-muted-foreground border-border"
+            title={isCountryMode ? 'Country choropleth' : 'US State choropleth'}
+          >
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">{isCountryMode ? 'Countries' : 'States'}</span>
+          </div>
+        )}
+        {isCityMode && (
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium shadow-md border
+                          bg-card/90 text-muted-foreground border-border"
+            title="City centroids mode"
+          >
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">Cities</span>
+          </div>
+        )}
       </div>
 
       {/* ── Hover tooltip ── */}
@@ -967,8 +1392,28 @@ export function InteractiveMapView({
         </div>
       )}
 
+      {/* ── Choropleth legend (bottom-left) ── */}
+      {isChoroplethMode && choroplethData && (
+        <div className="absolute bottom-20 left-3 z-10">
+          <div className="bg-card/85 backdrop-blur border border-border rounded-xl shadow-md px-3 py-2">
+            <div className="text-xs font-semibold text-muted-foreground mb-1.5 capitalize">
+              {choroplethData.valueColName.replace(/_/g, ' ')}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{formatValue(choroplethData.minVal)}</span>
+              <div className="w-20 h-3 rounded" style={{ background: 'linear-gradient(to right, #dbeafe, #1d4ed8)' }} />
+              <span className="text-xs text-muted-foreground">{formatValue(choroplethData.maxVal)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#e5e7eb', border: '1px solid #d1d5db' }} />
+              <span className="text-xs text-muted-foreground">No data</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Category legend (bottom-left) ── */}
-      {categoryColumn && Object.keys(categoryColorMap).length > 0 && (
+      {!isChoroplethMode && categoryColumn && Object.keys(categoryColorMap).length > 0 && (
         <div className="absolute bottom-20 left-3 z-10">
           <div className="bg-card/85 backdrop-blur border border-border rounded-xl shadow-md px-3 py-2">
             <div className="text-xs font-semibold text-muted-foreground mb-1.5 capitalize">
@@ -982,6 +1427,15 @@ export function InteractiveMapView({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Choropleth loading state ── */}
+      {isChoroplethMode && !choroplethData && !geoLoadError && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="bg-card/80 backdrop-blur px-4 py-2 rounded-xl text-sm text-muted-foreground shadow">
+            Loading map boundaries…
           </div>
         </div>
       )}

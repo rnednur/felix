@@ -115,7 +115,7 @@ class SpatialService:
                 "has_spatial": True,
                 "type": "geographic",
                 "columns": geo_cols,
-                "geocoding_required": True
+                "geocoding_required": False
             })
             return result
 
