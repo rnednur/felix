@@ -17,7 +17,7 @@ def run_migration():
     ALTER TABLE aispreadsheets.datasets
     ADD COLUMN IF NOT EXISTS has_spatial_data BOOLEAN NOT NULL DEFAULT FALSE;
 
-    -- Add spatial configuration (stores detected columns and Kepler.gl config)
+    -- Add spatial configuration (stores detected spatial column metadata)
     ALTER TABLE aispreadsheets.datasets
     ADD COLUMN IF NOT EXISTS spatial_config JSONB NULL;
 
@@ -28,7 +28,7 @@ def run_migration():
 
     -- Add comments
     COMMENT ON COLUMN aispreadsheets.datasets.has_spatial_data IS 'Indicates if dataset contains spatial data (lat/lng, addresses, etc.)';
-    COMMENT ON COLUMN aispreadsheets.datasets.spatial_config IS 'Stores spatial column metadata and Kepler.gl configuration as JSON';
+    COMMENT ON COLUMN aispreadsheets.datasets.spatial_config IS 'Stores spatial column metadata as JSON';
     """
 
     try:

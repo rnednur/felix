@@ -1124,13 +1124,6 @@ Return ONLY the JSON array."""
             spatial_info = self.spatial_service.detect_spatial_columns(sample_df)
 
             if spatial_info and spatial_info.get('type') == 'coordinates':
-                # Generate Kepler.gl config
-                config = self.spatial_service.generate_kepler_config(
-                    spatial_info,
-                    sample_df
-                )
-                spatial_info['default_config'] = config
-
                 logger.info(f"Detected spatial data in dataset {dataset_id}: {spatial_info['columns']}")
                 return spatial_info
 
@@ -1175,7 +1168,7 @@ Return ONLY the JSON array."""
                     'lat': lat_col,
                     'lng': lng_col
                 },
-                config=spatial_info.get('default_config'),
+                config=None,
                 dataset_id=dataset_id,
                 row_count=len(data)
             )

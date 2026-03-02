@@ -13,7 +13,7 @@ class GeospatialAgent(BaseAgent):
     Geospatial Agent - handles location data and map visualizations
 
     Detects spatial columns, creates map configs, handles geographic queries
-    Integrates with existing Kepler.gl map functionality
+    Integrates with the interactive map visualization
     """
 
     def __init__(self, config: AgentConfig):
@@ -92,12 +92,6 @@ class GeospatialAgent(BaseAgent):
             # Determine spatial task
             task_type = self._determine_spatial_task(request.query)
 
-            # Generate map configuration
-            map_config = self._generate_map_config(
-                spatial_columns=spatial_columns,
-                task_type=task_type
-            )
-
             # Sample data for preview
             sample_query = f"SELECT * FROM {table_name} LIMIT 100"
             sample_data_df = self.duckdb_service.execute_query(sample_query, dataset_id=dataset.id)
@@ -114,7 +108,6 @@ class GeospatialAgent(BaseAgent):
             response_data = {
                 'summary': f"Detected {len(spatial_columns)} spatial column(s)",
                 'spatial_columns': spatial_columns,
-                'map_config': map_config,
                 'task_type': task_type,
                 'sample_data': sample_data[:50],
                 'insights': insights,
@@ -205,66 +198,6 @@ class GeospatialAgent(BaseAgent):
             return 'distribution_analysis'
         else:
             return 'map_visualization'
-
-    def _generate_map_config(
-        self,
-        spatial_columns: List[Dict[str, Any]],
-        task_type: str
-    ) -> Dict[str, Any]:
-        """
-        Generate Kepler.gl map configuration
-        """
-        # Get coordinate columns if available
-        coord_col = next((c for c in spatial_columns if c['type'] == 'coordinates'), None)
-
-        if not coord_col:
-            return {
-                'message': 'Address geocoding required',
-                'requires_geocoding': True
-            }
-
-        config = {
-            'version': 'v1',
-            'config': {
-                'visState': {
-                    'layers': [
-                        {
-                            'type': 'point',
-                            'config': {
-                                'dataId': 'data',
-                                'label': 'Points',
-                                'columns': {
-                                    'lat': coord_col['lat_column'],
-                                    'lng': coord_col['lon_column']
-                                },
-                                'isVisible': True,
-                                'visConfig': {
-                                    'radius': 10,
-                                    'opacity': 0.8,
-                                    'colorRange': {
-                                        'name': 'Global Warming',
-                                        'type': 'sequential',
-                                        'category': 'Uber'
-                                    }
-                                }
-                            }
-                        }
-                    ]
-                },
-                'mapState': {
-                    'latitude': 37.7749,
-                    'longitude': -122.4194,
-                    'zoom': 8
-                }
-            }
-        }
-
-        # Adjust config based on task type
-        if task_type == 'spatial_clustering':
-            config['config']['visState']['layers'][0]['type'] = 'hexagon'
-            config['config']['visState']['layers'][0]['config']['visConfig']['radius'] = 1000
-
-        return config
 
     def _generate_spatial_insights(
         self,

@@ -48,7 +48,7 @@ class Dataset(Base):
 
     # Spatial/Map metadata (for Talk2Map)
     has_spatial_data = Column(Boolean, default=False, nullable=False)
-    spatial_config = Column(JSON, nullable=True)  # Stores detected columns and Kepler.gl config
+    spatial_config = Column(JSON, nullable=True)  # Stores detected spatial column metadata
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

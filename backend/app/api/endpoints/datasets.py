@@ -316,7 +316,7 @@ async def get_spatial_info(
     db: Session = Depends(get_db)
 ):
     """
-    Get spatial data information and Kepler.gl configuration for a dataset
+    Get spatial data information for a dataset
     Detects lat/lng columns, address columns, or geographic data
     """
     dataset = db.query(Dataset).filter(
@@ -343,16 +343,8 @@ async def get_spatial_info(
         spatial_info = spatial_service.detect_spatial_columns(sample)
 
         if spatial_info["has_spatial"]:
-            # Generate Kepler.gl config if coordinates detected
-            if spatial_info["type"] == "coordinates":
-                config = spatial_service.generate_kepler_config(spatial_info, sample)
-                spatial_info["default_config"] = config
-            elif spatial_info["type"] == "wkt":
-                # WKT geometry — no extra config needed, frontend parses geometries directly
-                spatial_info["default_config"] = {}
-            else:
+            if spatial_info["type"] not in ("coordinates", "wkt"):
                 # For address/geographic data, indicate geocoding needed
-                spatial_info["default_config"] = {}
                 spatial_info["message"] = "Geocoding required - not yet implemented"
 
         return spatial_info

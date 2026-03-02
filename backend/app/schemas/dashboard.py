@@ -162,7 +162,7 @@ class MapResult(BaseModel):
     title: str = Field(default="Geographic Distribution", description="Map title")
     data: List[Dict[str, Any]] = Field(..., description="Data points for the map")
     spatial_columns: Dict[str, str] = Field(..., description="Lat/lng column mapping, e.g., {'lat': 'latitude', 'lng': 'longitude'}")
-    config: Optional[Dict[str, Any]] = Field(None, description="Kepler.gl configuration")
+    config: Optional[Dict[str, Any]] = Field(None, description="Map configuration")
     dataset_id: str = Field(..., description="Source dataset ID")
     row_count: int = Field(..., description="Number of data points")
 

@@ -75,7 +75,7 @@ export interface MapContent {
     lat: string
     lng: string
   }
-  config?: any  // Kepler.gl config
+  config?: any  // Map configuration
   sourceQueryId?: string
   datasetId?: string
   // For export - captured static image
