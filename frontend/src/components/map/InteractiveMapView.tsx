@@ -325,6 +325,7 @@ interface InteractiveMapViewProps {
   config?: any
   onSaveConfig?: (config: any) => void
   chartRows?: any[]
+  chartQueryId?: string  // query_id for AI chart suggestions in the map overlay
 }
 
 interface PopupInfo {
@@ -715,6 +716,7 @@ export function InteractiveMapView({
   data,
   spatialColumns: spatialColumnsProp,
   chartRows,
+  chartQueryId,
 }: InteractiveMapViewProps) {
   const mapRef = useRef<MapRef>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1456,6 +1458,7 @@ export function InteractiveMapView({
           rows={chartRows}
           totalRows={chartRows.length}
           spatialColumns={spatialColumns ?? {}}
+          queryId={chartQueryId}
           onClose={() => setChartOverlayClosed(true)}
         />
       )}

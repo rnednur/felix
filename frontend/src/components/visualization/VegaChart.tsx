@@ -106,8 +106,8 @@ export function VegaChart({ spec, onExport, onCrossfilterSelect, onCrossfilterCl
     const { width, height, ...restSpec } = themedSpec
 
     // Use larger padding (40px) to account for axes labels, titles, legends
-    const availableWidth = containerSize.width > 0 ? containerSize.width - 40 : 600
-    const availableHeight = containerSize.height > 0 ? containerSize.height - 40 : 400
+    const availableWidth = Math.max(200, containerSize.width > 0 ? containerSize.width - 40 : 600)
+    const availableHeight = Math.max(200, containerSize.height > 0 ? containerSize.height - 40 : 400)
 
     return {
       ...restSpec,

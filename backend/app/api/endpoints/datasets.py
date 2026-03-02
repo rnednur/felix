@@ -89,6 +89,7 @@ async def upload_dataset(
     dataset = Dataset(
         id=dataset_id,
         name=file.filename,
+        description=natural_description,
         owner_id=current_user.id,  # Set owner
         parquet_path=paths['parquet_path'],
         schema_path=paths['schema_path'],
@@ -100,7 +101,6 @@ async def upload_dataset(
     )
     db.add(dataset)
     db.commit()
-    db.refresh(dataset)
 
     # Create dataset member entry for owner
     owner_member = DatasetMember(
@@ -110,15 +110,9 @@ async def upload_dataset(
     )
     db.add(owner_member)
     db.commit()
+    db.refresh(dataset)
 
-    # Add analysis as metadata to response
-    response = {
-        **dataset.__dict__,
-        "analysis": dataset_description,
-        "description_text": natural_description
-    }
-
-    return response
+    return dataset
 
 
 @router.get("/{dataset_id}", response_model=DatasetResponse)

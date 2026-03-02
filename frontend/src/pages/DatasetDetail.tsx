@@ -65,6 +65,12 @@ export default function DatasetDetail() {
   const [currentView, setCurrentView] = useState<'hub' | 'spreadsheet' | 'dashboard' | 'schema' | 'code' | 'report' | 'canvas' | 'map'>('hub')
   const [queryResult, setQueryResult] = useState<any>(null)
   const [mapQueryResult, setMapQueryResult] = useState<QueryResult | null>(null)
+
+  // Detect if the map query result is an aggregation (no spatial columns in result).
+  // If so, keep showing base data on the map but use the result only for the chart overlay.
+  const mapQueryIsSpatial = mapQueryResult && spatialColumns
+    ? (spatialColumns.lat && mapQueryResult.rows?.length > 0 && spatialColumns.lat in (mapQueryResult.rows[0] ?? {}))
+    : !!mapQueryResult?.rows?.length
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Clear map AI result when navigating to a different dataset
@@ -1667,10 +1673,17 @@ export default function DatasetDetail() {
               {(spatialColumns || mapQueryResult?.rows?.length) ? (
                 <InteractiveMapView
                   datasetId={id!}
-                  data={mapQueryResult?.rows || (showAllMapPoints && allRows ? allRows.rows : preview?.rows) || []}
+                  data={
+                    // Use query result rows for map dots only when the result contains spatial columns.
+                    // For aggregation results (no lat/lng), keep showing the base dataset points.
+                    mapQueryIsSpatial
+                      ? mapQueryResult!.rows
+                      : (showAllMapPoints && allRows ? allRows.rows : preview?.rows) || []
+                  }
                   spatialColumns={spatialColumns ?? { lat: 'latitude', lng: 'longitude' }}
                   config={mapConfig}
                   chartRows={mapQueryResult?.rows}
+                  chartQueryId={mapQueryResult?.query_id}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-500">

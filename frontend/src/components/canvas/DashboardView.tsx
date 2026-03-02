@@ -99,11 +99,13 @@ export function DashboardView({ queryResult, charts }: DashboardViewProps) {
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Visualizations</h3>
             <div className={`grid gap-6 ${charts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {charts.map((chart, i) => (
-                <div key={i} className="border border-gray-200 rounded-lg bg-white p-6">
-                  <h4 className="font-semibold mb-4 capitalize">
+                <div key={i} className="border border-gray-200 rounded-lg bg-white p-6 flex flex-col">
+                  <h4 className="font-semibold mb-4 capitalize flex-shrink-0">
                     {chart.title || `${chart.type} Chart`}
                   </h4>
-                  <VegaChart spec={chart.spec} />
+                  <div className="h-80">
+                    <VegaChart spec={chart.spec} />
+                  </div>
                 </div>
               ))}
             </div>

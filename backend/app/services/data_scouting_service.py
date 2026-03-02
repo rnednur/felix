@@ -11,6 +11,7 @@ Uses a hybrid approach:
 - Intelligent triggering to balance speed and cost
 """
 
+import math
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Optional
@@ -52,11 +53,18 @@ class DataScoutingService:
         self.llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "500"))
 
     def _serialize_for_json(self, obj: Any) -> Any:
-        """Helper to serialize datetime/date objects for JSON"""
+        """Helper to serialize datetime/date objects for JSON, sanitizing NaN/Inf floats"""
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
         elif isinstance(obj, (np.integer, np.floating)):
-            return obj.item()
+            val = obj.item()
+            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                return None
+            return val
+        elif isinstance(obj, float):
+            if math.isnan(obj) or math.isinf(obj):
+                return None
+            return obj
         elif isinstance(obj, np.bool_):
             return bool(obj)
         elif isinstance(obj, dict):
@@ -91,7 +99,7 @@ class DataScoutingService:
         # Generate scouting questions
         questions = self._generate_scouting_questions(discrepancies, column_profiles)
 
-        return {
+        result = {
             'success': True,
             'dataset_id': dataset_id,
             'sample_size': len(sample_df),
@@ -102,6 +110,7 @@ class DataScoutingService:
             'discrepancies': discrepancies,
             'timestamp': datetime.utcnow().isoformat()
         }
+        return self._serialize_for_json(result)
 
     def _load_sample(self, dataset_id: str, sample_size: int) -> pd.DataFrame:
         """Load a sample of the dataset for profiling"""
@@ -427,15 +436,22 @@ Be specific and practical. Focus on actionable insights."""
 
     def _profile_numeric(self, series: pd.Series) -> Dict[str, Any]:
         """Profile numeric columns"""
+        def safe_float(val) -> Optional[float]:
+            try:
+                v = float(val)
+                return None if (math.isnan(v) or math.isinf(v)) else v
+            except (TypeError, ValueError):
+                return None
+
         return {
-            'min': float(series.min()),
-            'max': float(series.max()),
-            'mean': float(series.mean()),
-            'median': float(series.median()),
-            'std': float(series.std()),
+            'min': safe_float(series.min()),
+            'max': safe_float(series.max()),
+            'mean': safe_float(series.mean()),
+            'median': safe_float(series.median()),
+            'std': safe_float(series.std()),
             'has_negatives': bool((series < 0).any()),
             'has_zeros': bool((series == 0).any()),
-            'is_integer_like': bool(series.apply(lambda x: float(x).is_integer()).all())
+            'is_integer_like': bool(series.dropna().apply(lambda x: float(x).is_integer()).all())
         }
 
     def _profile_text(self, series: pd.Series) -> Dict[str, Any]:

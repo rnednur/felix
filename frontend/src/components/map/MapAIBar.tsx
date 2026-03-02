@@ -20,7 +20,7 @@ export function MapAIBar({ datasetId, onQueryResult, currentResult, totalRows, s
       // Always include lat/lng columns in the result so map can plot the points.
       // Only add the hint if we know the actual lat/lng column names.
       const spatialHint = spatialColumns?.lat && spatialColumns?.lng
-        ? ` Always include the ${spatialColumns.lat} (latitude) and ${spatialColumns.lng} (longitude) columns in the SELECT clause so results can be plotted on a map.`
+        ? ` If the query fetches individual records (no GROUP BY aggregation), include the ${spatialColumns.lat} (latitude) and ${spatialColumns.lng} (longitude) columns in the SELECT clause so results can be plotted on a map. If the query uses GROUP BY or aggregation functions (COUNT, SUM, AVG, etc.), do NOT add ${spatialColumns.lat} or ${spatialColumns.lng} to the SELECT or GROUP BY — just aggregate as requested.`
         : ''
       return executeNLQuery(q + spatialHint, { datasetId })
     },
