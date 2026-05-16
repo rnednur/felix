@@ -1,0 +1,220 @@
+{
+  "agents": [
+    {
+      "name": "query_agent",
+      "display_name": "SQL Query Agent",
+      "description": "Translates natural language to SQL queries using DuckDB",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "sql_generation",
+        "aggregations",
+        "filtering",
+        "joins",
+        "window_functions"
+      ],
+      "libraries": ["duckdb"],
+      "service_integration": "NLToSQLService",
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "prompts": {
+        "default": "You are a SQL expert. Generate efficient DuckDB SQL queries."
+      },
+      "intent_keywords": [
+        "select", "filter", "group by", "count", "sum", "average",
+        "join", "where", "order by", "top", "limit", "show me",
+        "find", "get", "list", "display", "analyze", "summary",
+        "report", "overview", "breakdown", "comprehensive", "all",
+        "query", "search", "retrieve", "data", "records"
+      ]
+    },
+    {
+      "name": "data_scouting_agent",
+      "display_name": "Data Scouting Agent",
+      "description": "Profiles data and detects quality issues, patterns, and PII",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "pattern_detection",
+        "pii_detection",
+        "quality_assessment",
+        "semantic_typing",
+        "metadata_validation"
+      ],
+      "libraries": ["pandas", "numpy"],
+      "service_integration": "DataScoutingService",
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "prompts": {
+        "default": "You are a data profiling expert. Analyze data patterns and quality."
+      },
+      "intent_keywords": [
+        "profile", "scout", "analyze data", "quality", "pii",
+        "patterns", "data types", "metadata", "describe data",
+        "inspect", "check data", "data issues"
+      ]
+    },
+    {
+      "name": "visualization_agent",
+      "display_name": "Visualization Agent",
+      "description": "Creates optimal charts and visualizations based on data characteristics",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "chart_generation",
+        "vega_lite_specs",
+        "visualization_recommendation",
+        "chart_type_selection"
+      ],
+      "libraries": ["duckdb"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "chart", "graph", "plot", "visualize", "show", "display",
+        "create chart", "bar chart", "line chart", "scatter", "histogram",
+        "trend", "distribution", "comparison"
+      ]
+    },
+    {
+      "name": "statistical_agent",
+      "display_name": "Statistical Analysis Agent",
+      "description": "Performs statistical analysis including correlation, outliers, and distributions",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "correlation_analysis",
+        "outlier_detection",
+        "distribution_analysis",
+        "descriptive_statistics",
+        "hypothesis_testing"
+      ],
+      "libraries": ["duckdb"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "correlat", "statistic", "outlier", "anomaly", "distribution",
+        "mean", "median", "standard deviation", "variance", "relationship",
+        "test", "significance", "hypothesis"
+      ]
+    },
+    {
+      "name": "ml_agent",
+      "display_name": "ML/Prediction Agent",
+      "description": "Provides machine learning recommendations for prediction, classification, and clustering",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "ml_recommendation",
+        "regression_guidance",
+        "classification_guidance",
+        "clustering_guidance",
+        "feature_importance"
+      ],
+      "libraries": [],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "predict", "forecast", "classify", "categorize", "cluster",
+        "segment", "machine learning", "ml", "model", "train",
+        "regression", "classification", "feature importance"
+      ]
+    },
+    {
+      "name": "geospatial_agent",
+      "display_name": "Geospatial Agent",
+      "description": "Handles location data and creates map visualizations",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "spatial_detection",
+        "map_configuration",
+        "coordinate_analysis",
+        "geographic_insights"
+      ],
+      "libraries": ["duckdb"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1500
+      },
+      "intent_keywords": [
+        "map", "location", "geographic", "spatial", "coordinates",
+        "latitude", "longitude", "address", "distance", "nearest",
+        "proximity", "geocode", "geospatial"
+      ]
+    },
+    {
+      "name": "dashboard_planner_agent",
+      "display_name": "Dashboard Planner Agent",
+      "description": "Orchestrates automatic dashboard generation from datasets with KPIs, charts, and insights",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "dashboard_generation",
+        "kpi_identification",
+        "chart_selection",
+        "insight_generation",
+        "layout_optimization"
+      ],
+      "libraries": ["duckdb", "pandas"],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.3,
+        "max_tokens": 2000
+      },
+      "prompts": {
+        "default": "You are a dashboard design expert. Create insightful, actionable dashboards from data."
+      },
+      "intent_keywords": [
+        "dashboard", "overview", "summary dashboard", "create dashboard",
+        "auto dashboard", "visualize all", "complete analysis", "full report",
+        "executive summary", "data overview", "generate dashboard"
+      ]
+    },
+    {
+      "name": "dashboard_editor_agent",
+      "display_name": "Dashboard Editor Agent",
+      "description": "Interprets visual annotations and generates dashboard modifications",
+      "tier": "free",
+      "enabled": true,
+      "capabilities": [
+        "interpret_annotations",
+        "generate_edits",
+        "modify_charts",
+        "modify_kpis",
+        "modify_insights",
+        "element_removal"
+      ],
+      "libraries": [],
+      "llm_config": {
+        "default_model": "anthropic/claude-3.5-sonnet",
+        "temperature": 0.2,
+        "max_tokens": 1000
+      },
+      "prompts": {
+        "default": "You are a dashboard editor. Interpret user feedback and generate specific edit instructions."
+      },
+      "intent_keywords": [
+        "change", "modify", "update", "edit", "annotate",
+        "make", "convert", "transform", "style",
+        "color", "font", "size", "bigger", "smaller",
+        "remove", "delete", "hide", "chart type"
+      ]
+    }
+  ]
+}

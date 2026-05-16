@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str
     OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
     PRESENTATION_MODEL: str = "google/gemini-2.0-flash-exp:free"  # Gemini for presentations
+    AGENT_MODEL: str = "google/gemini-2.0-flash-exp:free"  # Model for agents (dashboard, analysis, etc.)
+    VISION_MODEL: str = "google/gemini-2.0-flash-exp:free"  # Model for vision tasks (color extraction, etc.)
+    IMAGE_GEN_MODEL: str = "google/gemini-2.0-flash-exp:free"  # Model for image generation (infographics)
     ENVIRONMENT: str = "development"
 
     # Security settings

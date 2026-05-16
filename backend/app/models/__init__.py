@@ -9,6 +9,8 @@ from app.models.audit import AuditLog
 from app.models.code_execution import CodeExecution, MLModel
 from app.models.research_job import ResearchJob, ResearchJobStatus
 from app.models.workspace import Workspace, CanvasItem
+from app.models.agent_session import AgentSession, AgentMessage, AgentExecution
+from app.models.skill import SkillModel, SkillVersion, SkillUsageEvent, SkillSourceType, SkillStatus
 
 __all__ = [
     "Dataset",
@@ -36,4 +38,12 @@ __all__ = [
     "ResearchJobStatus",
     "Workspace",
     "CanvasItem",
+    "AgentSession",
+    "AgentMessage",
+    "AgentExecution",
+    "SkillModel",
+    "SkillVersion",
+    "SkillUsageEvent",
+    "SkillSourceType",
+    "SkillStatus",
 ]

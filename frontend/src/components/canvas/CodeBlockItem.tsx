@@ -3,13 +3,25 @@ import { Code } from 'lucide-react'
 
 interface CodeBlockItemProps {
   content: CodeBlockContent
+  itemId?: string
 }
 
-export function CodeBlockItem({ content }: CodeBlockItemProps) {
+export function CodeBlockItem({ content, itemId }: CodeBlockItemProps) {
   const { language, code } = content
 
+  // Serialize config for annotation system
+  const felixConfig = itemId ? JSON.stringify({
+    language,
+    codeLength: code?.length
+  }) : undefined
+
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden">
+    <div
+      className="h-full flex flex-col bg-white overflow-hidden"
+      data-felix-id={itemId}
+      data-felix-type="code"
+      data-felix-config={felixConfig}
+    >
       {/* Header */}
       <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
         <Code className="h-4 w-4 text-gray-600" />

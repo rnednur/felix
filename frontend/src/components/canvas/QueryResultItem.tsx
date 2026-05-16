@@ -5,9 +5,10 @@ import { Edit2, Check } from 'lucide-react'
 interface QueryResultItemProps {
   content: QueryResultContent
   onTitleChange?: (newTitle: string) => void
+  itemId?: string
 }
 
-export function QueryResultItem({ content, onTitleChange }: QueryResultItemProps) {
+export function QueryResultItem({ content, onTitleChange, itemId }: QueryResultItemProps) {
   const { columns, rows, totalRows } = content
   const [isEditing, setIsEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState('Query Results')
@@ -28,8 +29,20 @@ export function QueryResultItem({ content, onTitleChange }: QueryResultItemProps
     }
   }
 
+  // Serialize config for annotation system
+  const felixConfig = itemId ? JSON.stringify({
+    columns,
+    totalRows,
+    rowCount: rows?.length
+  }) : undefined
+
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden">
+    <div
+      className="h-full flex flex-col bg-white overflow-hidden"
+      data-felix-id={itemId}
+      data-felix-type="table"
+      data-felix-config={felixConfig}
+    >
       {/* Header */}
       <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
         <div className="flex items-center justify-between group">

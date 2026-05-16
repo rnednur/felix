@@ -23,11 +23,12 @@ import { PlanEditor } from '@/components/research/PlanEditor'
 import { ResearchHistoryModal } from '@/components/research/ResearchHistoryModal'
 import { ScoutingDialog } from '@/components/scouting/ScoutingDialog'
 import { ScoutingResults } from '@/components/scouting/ScoutingResults'
+import { DashboardGeneratorModal } from '@/components/dashboard/DashboardGeneratorModal'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles, Map as MapIcon } from 'lucide-react'
-import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult } from '@/services/api'
+import { FileSpreadsheet, BarChart3, Settings, Info, Table2, Code2, Upload, FileText, ArrowLeft, History, Share2, Layout, X, FolderOpen, Sparkles, Map as MapIcon, LayoutDashboard } from 'lucide-react'
+import { describeDataset, generatePythonCode, executePythonCode, executeDeepResearch, chatWithAgent, type PythonAnalysisResult, type ExecutionResult, type DeepResearchResult, type AgentResponse } from '@/services/api'
 import axios from '@/services/api'
 
 interface Message {
@@ -65,6 +66,7 @@ export default function DatasetDetail() {
   // Canvas mode state
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([])
   const [canvasMode, setCanvasMode] = useState(false)
+  const [canvasTitle, setCanvasTitle] = useState<string>('')
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [savedWorkspaces, setSavedWorkspaces] = useState<any[]>([])
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('auto')
@@ -106,6 +108,12 @@ export default function DatasetDetail() {
   const [showScoutingDialog, setShowScoutingDialog] = useState(false)
   const [scoutingResult, setScoutingResult] = useState<any>(null)
   const [showScoutingResults, setShowScoutingResults] = useState(false)
+
+  // Dashboard Generator
+  const [showDashboardGenerator, setShowDashboardGenerator] = useState(false)
+
+  // Agent mode
+  const [agentSessionId, setAgentSessionId] = useState<string | undefined>(undefined)
 
   const nlQueryMutation = useNLQuery()
   const { data: vizSuggestions } = useVisualizationSuggestions(queryResult?.query_id)
@@ -383,6 +391,7 @@ export default function DatasetDetail() {
       }))
 
       setCanvasItems(loadedItems)
+      setCanvasTitle(workspace.name)
       setShowLoadDialog(false)
       alert(`✅ Loaded workspace: ${workspace.name}`)
     } catch (error: any) {
@@ -561,6 +570,259 @@ export default function DatasetDetail() {
           newMessages[newMessages.length - 1] = {
             role: 'assistant',
             content: `❌ Plan generation failed: ${error.message || 'Unknown error'}`
+          }
+          return newMessages
+        })
+      }
+      return
+    }
+
+    // Agent mode
+    if (mode === 'agent') {
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: '🤖 Routing to specialized agent...'
+      }])
+
+      try {
+        const result: AgentResponse = await chatWithAgent({
+          query,
+          dataset_id: id!,
+          session_id: agentSessionId,
+          stream: false
+        })
+
+        // Save session ID for context
+        if (result.session_id && !agentSessionId) {
+          setAgentSessionId(result.session_id)
+        }
+
+        // Format agent response
+        let responseText = `**${result.agent}**\n\n${result.response.summary}`
+
+        // Handle multi-agent results
+        if (result.response.results && Array.isArray(result.response.results)) {
+          responseText += `\n\n---\n\n`
+
+          for (const agentResult of result.response.results) {
+            responseText += `\n### ${agentResult.agent}\n\n`
+
+            const data = agentResult.data
+
+            // ML Agent - Actual Analysis
+            if (data.type === 'ml_analysis') {
+              responseText += `**${data.summary}**\n\n`
+
+              if (data.insights && data.insights.length > 0) {
+                responseText += `**Key Insights:**\n`
+                data.insights.forEach((insight: string) => {
+                  responseText += `• ${insight}\n`
+                })
+                responseText += `\n`
+              }
+
+              if (data.predictions) {
+                responseText += `**Predictions:**\n${JSON.stringify(data.predictions, null, 2)}\n\n`
+              }
+
+              if (data.metrics) {
+                responseText += `**Model Metrics:**\n`
+                Object.entries(data.metrics).forEach(([key, value]) => {
+                  responseText += `• ${key}: ${value}\n`
+                })
+                responseText += `\n`
+              }
+
+              if (data.code) {
+                responseText += `**Generated Code:**\n\`\`\`python\n${data.code}\n\`\`\`\n`
+              }
+            }
+
+            // ML Agent - Recommendations (fallback)
+            else if (data.type === 'ml_recommendation') {
+              responseText += `**${data.summary}**\n\n`
+              responseText += `${data.recommendation}\n\n`
+
+              if (data.approach && data.approach.length > 0) {
+                responseText += `**Approach:**\n`
+                data.approach.forEach((step: string) => {
+                  responseText += `${step}\n`
+                })
+                responseText += `\n`
+              }
+
+              if (data.next_steps && data.next_steps.length > 0) {
+                responseText += `**Next Steps:**\n`
+                data.next_steps.forEach((step: string) => {
+                  responseText += `${step}\n`
+                })
+              }
+
+              if (data.error_details) {
+                responseText += `\n**Note**: Automated analysis failed: ${data.error_details}\n`
+              }
+            }
+
+            // Geospatial Agent
+            else if (data.type === 'geospatial') {
+              responseText += `**${data.summary}**\n\n`
+
+              if (data.insights && data.insights.length > 0) {
+                responseText += `**Geographic Insights:**\n`
+                data.insights.forEach((insight: string) => {
+                  responseText += `• ${insight}\n`
+                })
+                responseText += `\n`
+              }
+
+              if (data.spatial_columns && data.spatial_columns.length > 0) {
+                responseText += `**Spatial Columns Detected:**\n`
+                data.spatial_columns.forEach((col: any) => {
+                  if (col.type === 'coordinates') {
+                    responseText += `• Coordinates: ${col.lat_column}, ${col.lon_column}\n`
+                  } else {
+                    responseText += `• ${col.type}: ${col.name}\n`
+                  }
+                })
+              }
+            }
+
+            // Statistical Agent
+            else if (data.type === 'statistical_analysis') {
+              responseText += `**${data.summary}**\n\n`
+
+              if (data.insights && data.insights.length > 0) {
+                responseText += `**Statistical Insights:**\n`
+                data.insights.forEach((insight: string) => {
+                  responseText += `• ${insight}\n`
+                })
+                responseText += `\n`
+              }
+
+              if (data.results) {
+                // Show correlations, outliers, distributions, etc.
+                if (data.results.correlations && data.results.correlations.length > 0) {
+                  responseText += `**Top Correlations:**\n`
+                  data.results.correlations.slice(0, 5).forEach((corr: any) => {
+                    responseText += `• ${corr.column_1} ↔ ${corr.column_2}: ${corr.correlation}\n`
+                  })
+                  responseText += `\n`
+                }
+
+                if (data.results.outliers && data.results.outliers.length > 0) {
+                  responseText += `**Outlier Detection:**\n`
+                  data.results.outliers.forEach((outlier: any) => {
+                    responseText += `• ${outlier.column}: ${outlier.outlier_count} outliers\n`
+                  })
+                }
+              }
+            }
+
+            // Visualization Agent
+            else if (data.type === 'visualization') {
+              responseText += `**${data.summary}**\n\n`
+              responseText += `${data.explanation || ''}\n`
+            }
+
+            // Generic fallback
+            else {
+              responseText += JSON.stringify(data, null, 2)
+            }
+
+            responseText += `\n`
+          }
+        }
+
+        // Add SQL if present
+        if (result.response.sql) {
+          responseText += `\n\n**SQL Query:**\n\`\`\`sql\n${result.response.sql}\n\`\`\``
+        }
+
+        // Add data table summary if present
+        if (result.response.result_preview && result.response.result_preview.length > 0) {
+          const rows = result.response.result_preview
+          const rowCount = result.response.row_count || rows.length
+
+          responseText += `\n\n**Query Results** (${rowCount} rows):\n\n`
+
+          // Create markdown table from first 10 rows
+          const displayRows = rows.slice(0, 10)
+          if (displayRows.length > 0) {
+            // Get column names
+            const columns = Object.keys(displayRows[0])
+
+            // Create table header
+            responseText += `| ${columns.join(' | ')} |\n`
+            responseText += `| ${columns.map(() => '---').join(' | ')} |\n`
+
+            // Add rows
+            displayRows.forEach(row => {
+              const values = columns.map(col => {
+                const val = row[col]
+                // Format values (handle null, numbers, etc.)
+                if (val === null || val === undefined) return '-'
+                if (typeof val === 'number') return val.toLocaleString()
+                return String(val)
+              })
+              responseText += `| ${values.join(' | ')} |\n`
+            })
+
+            if (rows.length > 10) {
+              responseText += `\n_Showing 10 of ${rowCount} rows_`
+            }
+          }
+        }
+
+        // Add observations if present (data scouting)
+        if (result.response.observations && result.response.observations.length > 0) {
+          responseText += `\n\n**Key Observations:**\n` +
+            result.response.observations.slice(0, 5).map((obs: any) => `• ${obs}`).join('\n')
+        }
+
+        // Add metadata
+        responseText += `\n\n_Execution time: ${result.metadata.execution_time_ms}ms_`
+
+        // Prepare execution result for display
+        let executionResult: ExecutionResult | undefined = undefined
+        if (result.response.result_preview && result.response.result_preview.length > 0) {
+          executionResult = {
+            data: result.response.result_preview,
+            columns: Object.keys(result.response.result_preview[0] || {}),
+            row_count: result.response.row_count || result.response.result_preview.length,
+            execution_time_ms: result.metadata.execution_time_ms || 0
+          }
+        }
+
+        // Replace loading message with result
+        setMessages((prev) => {
+          const newMessages = [...prev]
+          newMessages[newMessages.length - 1] = {
+            role: 'assistant',
+            content: responseText,
+            code: result.response.sql,
+            executionResult: executionResult
+          }
+          return newMessages
+        })
+
+        // If there's SQL result data, also update query result for dashboard view
+        if (result.response.result_preview && result.response.result_preview.length > 0) {
+          setQueryResult({
+            query_id: result.session_id,
+            sql: result.response.sql,
+            rows: result.response.result_preview,
+            total_rows: result.response.result_preview.length,
+            status: 'SUCCESS'
+          })
+          // Don't auto-switch to dashboard - let user decide
+          // setCurrentView('dashboard')
+        }
+      } catch (error: any) {
+        setMessages((prev) => {
+          const newMessages = [...prev]
+          newMessages[newMessages.length - 1] = {
+            role: 'assistant',
+            content: `❌ Agent error: ${error.response?.data?.detail || error.message}`
           }
           return newMessages
         })
@@ -768,6 +1030,50 @@ export default function DatasetDetail() {
         />
       )}
 
+      {/* Dashboard Generator Modal */}
+      <DashboardGeneratorModal
+        datasetId={id!}
+        datasetName={dataset?.name || 'Dataset'}
+        isOpen={showDashboardGenerator}
+        onClose={() => setShowDashboardGenerator(false)}
+        onComplete={(workspaceId) => {
+          setShowDashboardGenerator(false)
+          // Navigate to the generated workspace
+          if (workspaceId) {
+            // Load the workspace into canvas mode
+            setCanvasMode(true)
+            setCurrentView('canvas')
+            // Fetch and load the workspace items
+            const loadGeneratedWorkspace = async () => {
+              try {
+                const token = localStorage.getItem('access_token')
+                if (!token) return
+                const response = await axios.get(`/workspaces/${workspaceId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                })
+                const workspace = response.data
+                const loadedItems: CanvasItem[] = workspace.items.map((item: any) => ({
+                  id: item.id,
+                  workspaceId: workspace.id,
+                  type: item.type,
+                  x: item.x,
+                  y: item.y,
+                  width: item.width,
+                  height: item.height,
+                  zIndex: item.z_index,
+                  content: item.content
+                }))
+                setCanvasItems(loadedItems)
+                setCanvasTitle(workspace.name)
+              } catch (error) {
+                console.error('Failed to load generated workspace:', error)
+              }
+            }
+            loadGeneratedWorkspace()
+          }
+        }}
+      />
+
       {/* Dataset Settings Panel */}
       {showSettingsPanel && dataset && schema && (
         <DatasetSettingsPanel
@@ -952,6 +1258,15 @@ export default function DatasetDetail() {
                 <IconButton
                   variant="default"
                   size="md"
+                  tooltip="Create Dashboard"
+                  onClick={() => setShowDashboardGenerator(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <LayoutDashboard className="h-5 w-5" />
+                </IconButton>
+                <IconButton
+                  variant="default"
+                  size="md"
                   tooltip="Research History"
                   onClick={() => setShowHistoryModal(true)}
                 >
@@ -993,6 +1308,8 @@ export default function DatasetDetail() {
           <CanvasWorkspace
             workspaceId={id || 'temp'}
             items={canvasItems}
+            title={canvasTitle}
+            onTitleChange={setCanvasTitle}
             onItemsChange={setCanvasItems}
             onLoad={handleLoadWorkspace}
             onSave={async (name: string, description?: string) => {

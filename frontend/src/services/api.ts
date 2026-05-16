@@ -159,6 +159,60 @@ export interface AIDescribeColumnsResult {
   message: string
 }
 
+// Agents
+export interface Agent {
+  name: string
+  display_name: string
+  description: string
+  capabilities: string[]
+  tier: string
+  enabled: boolean
+}
+
+export interface AgentMessage {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  agent_name?: string
+  code?: string
+  result_data?: any
+  tokens_used?: number
+  execution_time_ms?: number
+  timestamp: string
+}
+
+export interface AgentResponse {
+  session_id: string
+  agent: string
+  response: {
+    summary: string
+    sql?: string
+    explanation?: string
+    result_preview?: any[]
+    observations?: any[]
+    discrepancies?: any[]
+    scouting_questions?: string[]
+    type: string
+    [key: string]: any
+  }
+  metadata: {
+    execution_time_ms: number
+    tokens_used: number
+    confidence?: number
+  }
+}
+
+export interface AgentSession {
+  id: string
+  user_id?: string
+  dataset_id: string
+  name?: string
+  created_at: string
+  updated_at: string
+  messages?: AgentMessage[]
+}
+
 // Datasets
 export const uploadDataset = async (formData: FormData): Promise<Dataset> => {
   const { data } = await api.post('/datasets/upload', formData)
@@ -392,6 +446,51 @@ export const executeDeepResearch = async (
     enable_python: options?.enablePython ?? true,
     enable_world_knowledge: options?.enableWorldKnowledge ?? true
   })
+  return data
+}
+
+// Agents
+export const listAgents = async (): Promise<{ agents: Agent[] }> => {
+  const { data } = await api.get('/agents')
+  return data
+}
+
+export const chatWithAgent = async (request: {
+  query: string
+  dataset_id: string
+  agent_name?: string
+  session_id?: string
+  stream?: boolean
+}): Promise<AgentResponse> => {
+  const { data } = await api.post('/agents/chat', request)
+  return data
+}
+
+export const getAgentSession = async (sessionId: string): Promise<AgentSession> => {
+  const { data } = await api.get(`/agents/sessions/${sessionId}`)
+  return data
+}
+
+export const listAgentSessions = async (
+  datasetId?: string,
+  limit: number = 50
+): Promise<{ sessions: AgentSession[] }> => {
+  const params = new URLSearchParams()
+  if (datasetId) params.append('dataset_id', datasetId)
+  params.append('limit', limit.toString())
+
+  const { data } = await api.get(`/agents/sessions?${params.toString()}`)
+  return data
+}
+
+export const deleteAgentSession = async (sessionId: string): Promise<void> => {
+  await api.delete(`/agents/sessions/${sessionId}`)
+}
+
+export const generateAgentSessionName = async (
+  sessionId: string
+): Promise<{ name: string }> => {
+  const { data } = await api.post(`/agents/sessions/${sessionId}/name`)
   return data
 }
 

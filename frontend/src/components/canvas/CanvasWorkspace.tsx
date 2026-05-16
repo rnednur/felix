@@ -1,14 +1,26 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { CanvasItem, CanvasItemType } from '@/types/canvas'
+import { CanvasItem, CanvasItemType, KPICardContent, MapContent } from '@/types/canvas'
 import { QueryResultItem } from './QueryResultItem'
 import { ChartItem } from './ChartItem'
 import { CodeBlockItem } from './CodeBlockItem'
 import { InsightNoteItem } from './InsightNoteItem'
-import { Plus, Save, Download, Trash2, X, FolderOpen, LayoutGrid } from 'lucide-react'
+import { KPICard } from './KPICard'
+import { MapItem } from './MapItem'
+import { DashboardGridView } from './DashboardGridView'
+import { ExportDialog } from '@/components/export/ExportDialog'
+import { ThemeExtractor } from '@/components/theming/ThemeExtractor'
+import { ThemePresetSelector } from '@/components/theming/ThemePresetSelector'
+import { AnnotationProvider, AnnotationToggle, AnnotationOverlay } from '@/components/annotation'
+import { DashboardEdit } from '@/types/annotation'
+import { Plus, Save, Download, Trash2, X, FolderOpen, LayoutGrid, Wand2, Move, LayoutDashboard, Edit2, Check } from 'lucide-react'
+
+type ViewMode = 'canvas' | 'dashboard'
 
 interface CanvasWorkspaceProps {
   workspaceId: string
   items: CanvasItem[]
+  title?: string
+  onTitleChange?: (title: string) => void
   onItemsChange: (items: CanvasItem[]) => void
   onSave: (name: string, description?: string) => void
   onLoad?: () => void
@@ -100,6 +112,7 @@ function SimpleDraggableItem({
       case 'chart':
         return <ChartItem
           content={item.content as any}
+          chartId={item.id}
           onTitleChange={(newTitle) => {
             const updatedContent = { ...item.content as any, title: newTitle }
             onContentChange(item.id, updatedContent)
@@ -109,6 +122,17 @@ function SimpleDraggableItem({
         return <CodeBlockItem content={item.content as any} />
       case 'insight-note':
         return <InsightNoteItem content={item.content as any} />
+      case 'kpi-card':
+        return <KPICard content={item.content as KPICardContent} />
+      case 'map':
+        return <MapItem
+          content={item.content as MapContent}
+          mapId={item.id}
+          onTitleChange={(newTitle) => {
+            const updatedContent = { ...item.content as MapContent, title: newTitle }
+            onContentChange(item.id, updatedContent)
+          }}
+        />
       default:
         return <div>Unknown item type</div>
     }
@@ -117,7 +141,7 @@ function SimpleDraggableItem({
   return (
     <div
       ref={itemRef}
-      className="absolute border-2 border-gray-300 rounded-lg shadow-lg overflow-hidden bg-white"
+      className="absolute rounded-xl overflow-hidden bg-white group/item shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08),0_4px_12px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_16px_-2px_rgba(0,0,0,0.1),0_8px_24px_-4px_rgba(0,0,0,0.08)] transition-shadow duration-200"
       style={{
         left: item.x,
         top: item.y,
@@ -128,41 +152,44 @@ function SimpleDraggableItem({
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Drag handle */}
-      <div className="drag-handle absolute top-0 left-0 right-0 h-10 bg-gradient-to-r from-blue-50 to-gray-50 border-b-2 border-blue-200 cursor-grab active:cursor-grabbing flex items-center justify-between px-4 hover:bg-blue-100 transition-colors">
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col gap-1">
-            <div className="w-4 h-0.5 bg-gray-400 rounded"></div>
-            <div className="w-4 h-0.5 bg-gray-400 rounded"></div>
-            <div className="w-4 h-0.5 bg-gray-400 rounded"></div>
+      {/* Subtle drag handle - appears on hover */}
+      <div className="drag-handle absolute top-0 left-0 right-0 h-8 cursor-grab active:cursor-grabbing flex items-center justify-between px-3 bg-gradient-to-b from-slate-100/80 to-transparent opacity-0 group-hover/item:opacity-100 transition-opacity z-10">
+        <div className="flex items-center gap-1.5">
+          <div className="flex gap-0.5">
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
           </div>
-          <span className="text-xs font-medium text-gray-700">Drag to move</span>
+          <div className="flex gap-0.5">
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+          </div>
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation()
             onDelete(item.id)
           }}
-          className="text-gray-400 hover:text-red-600 hover:bg-red-50 rounded px-2 py-1 transition-colors font-bold text-lg"
+          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
         >
-          ×
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Content */}
-      <div className="mt-10 h-[calc(100%-2.5rem)] overflow-hidden">
+      {/* Content - no offset needed anymore */}
+      <div className="h-full overflow-hidden">
         {renderContent()}
       </div>
 
-      {/* Resize Handle */}
+      {/* Subtle resize handle */}
       <div
-        className="resize-handle absolute bottom-0 right-0 w-6 h-6 cursor-se-resize"
-        style={{
-          background: 'linear-gradient(135deg, transparent 50%, #3b82f6 50%)',
-        }}
+        className="resize-handle absolute bottom-0 right-0 w-5 h-5 cursor-se-resize opacity-0 group-hover/item:opacity-100 transition-opacity"
         title="Drag to resize"
       >
-        <div className="absolute bottom-1 right-1 w-1 h-1 bg-white rounded-full"></div>
+        <svg className="absolute bottom-1 right-1 h-3 w-3 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z" />
+        </svg>
       </div>
     </div>
   )
@@ -171,14 +198,56 @@ function SimpleDraggableItem({
 export function CanvasWorkspace({
   workspaceId,
   items,
+  title,
+  onTitleChange,
   onItemsChange,
   onSave,
   onLoad
 }: CanvasWorkspaceProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const exportCanvasRef = useRef<HTMLDivElement>(null)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showThemeExtractor, setShowThemeExtractor] = useState(false)
   const [workspaceName, setWorkspaceName] = useState('')
   const [workspaceDescription, setWorkspaceDescription] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus()
+      titleInputRef.current.select()
+    }
+  }, [isEditingTitle])
+
+  const handleStartEditingTitle = () => {
+    setEditedTitle(title || `${viewMode === 'dashboard' ? 'Dashboard' : 'Canvas'} Workspace`)
+    setIsEditingTitle(true)
+  }
+
+  const handleSaveTitle = () => {
+    if (editedTitle.trim() && onTitleChange) {
+      onTitleChange(editedTitle.trim())
+    }
+    setIsEditingTitle(false)
+  }
+
+  const handleCancelEditingTitle = () => {
+    setIsEditingTitle(false)
+    setEditedTitle('')
+  }
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveTitle()
+    } else if (e.key === 'Escape') {
+      handleCancelEditingTitle()
+    }
+  }
 
   const handlePositionChange = (id: string, x: number, y: number) => {
     const updatedItems = items.map(item =>
@@ -219,6 +288,210 @@ export function CanvasWorkspace({
     }
   }
 
+  // Use a ref to track latest items without causing re-renders
+  const itemsRef = useRef(items)
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  // Deep merge utility for Vega specs
+  const deepMerge = (target: any, source: any): any => {
+    const result = { ...target }
+    for (const key in source) {
+      if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+        result[key] = deepMerge(target[key] || {}, source[key])
+      } else {
+        result[key] = source[key]
+      }
+    }
+    return result
+  }
+
+  // Apply changes to a chart's Vega spec based on LLM response
+  const applyChartChanges = (content: any, changes: Record<string, any>): any => {
+    const newContent = { ...content }
+    let vegaSpec = JSON.parse(JSON.stringify(content.vegaSpec)) // Deep clone
+
+    console.log('[applyChartChanges] Input vegaSpec:', vegaSpec)
+    console.log('[applyChartChanges] Changes to apply:', changes)
+
+    // If the LLM sent a complete vegaSpec, deep merge it
+    if (changes.vegaSpec) {
+      console.log('[applyChartChanges] Applying vegaSpec from LLM')
+      vegaSpec = deepMerge(vegaSpec, changes.vegaSpec)
+
+      // Handle mark specially - it can be string or object
+      if (changes.vegaSpec.mark) {
+        vegaSpec.mark = changes.vegaSpec.mark
+      }
+    }
+
+    // Handle chart type changes (update mark)
+    if (changes.chartType && !changes.vegaSpec?.mark) {
+      const chartTypeToMark: Record<string, any> = {
+        'bar': 'bar',
+        'line': 'line',
+        'area': 'area',
+        'point': 'point',
+        'scatter': 'point',
+        'pie': { type: 'arc' },
+        'donut': { type: 'arc', innerRadius: 50 },
+        'arc': { type: 'arc' }
+      }
+      const newMark = chartTypeToMark[changes.chartType] || changes.chartType
+      vegaSpec.mark = newMark
+      newContent.chartType = changes.chartType
+      console.log('[applyChartChanges] Changed chart type to:', changes.chartType)
+
+      // For pie/donut charts, transform encoding
+      if (changes.chartType === 'pie' || changes.chartType === 'donut') {
+        if (vegaSpec.encoding?.x && vegaSpec.encoding?.y) {
+          const quantField = vegaSpec.encoding.x.type === 'quantitative' ? vegaSpec.encoding.x : vegaSpec.encoding.y
+          const nominalField = vegaSpec.encoding.x.type === 'nominal' ? vegaSpec.encoding.x : vegaSpec.encoding.y
+          vegaSpec.encoding = {
+            theta: { field: quantField.field, type: 'quantitative' },
+            color: { field: nominalField.field, type: 'nominal' }
+          }
+        }
+      }
+    }
+
+    // Handle sort order changes (if not already in vegaSpec)
+    if ((changes.sortOrder || changes.sortBy) && !changes.vegaSpec?.encoding) {
+      if (vegaSpec.encoding) {
+        const yEnc = vegaSpec.encoding.y
+        const xEnc = vegaSpec.encoding.x
+
+        if (yEnc && (yEnc.type === 'nominal' || yEnc.type === 'ordinal')) {
+          vegaSpec.encoding.y = {
+            ...yEnc,
+            sort: changes.sortOrder === 'descending' ? '-x' : 'x'
+          }
+          console.log('[applyChartChanges] Applied sort to y-axis:', vegaSpec.encoding.y.sort)
+        } else if (xEnc && (xEnc.type === 'nominal' || xEnc.type === 'ordinal')) {
+          vegaSpec.encoding.x = {
+            ...xEnc,
+            sort: changes.sortOrder === 'descending' ? '-y' : 'y'
+          }
+          console.log('[applyChartChanges] Applied sort to x-axis:', vegaSpec.encoding.x.sort)
+        }
+      }
+    }
+
+    // Handle color changes (if not already in vegaSpec)
+    if ((changes.color || changes.colors) && !changes.vegaSpec?.mark?.color) {
+      const color = changes.color || (changes.colors && changes.colors[0])
+      if (color) {
+        // Apply color to mark
+        if (typeof vegaSpec.mark === 'string') {
+          vegaSpec.mark = { type: vegaSpec.mark, color }
+        } else {
+          vegaSpec.mark = { ...vegaSpec.mark, color }
+        }
+        console.log('[applyChartChanges] Applied color:', color)
+      }
+    }
+
+    // Handle title changes
+    if (changes.title) {
+      vegaSpec.title = changes.title
+      newContent.title = changes.title
+    }
+
+    newContent.vegaSpec = vegaSpec
+    console.log('[applyChartChanges] Final vegaSpec:', vegaSpec)
+    return newContent
+  }
+
+  // Handle annotation edit received from backend
+  const handleAnnotationEdit = useCallback((edit: DashboardEdit) => {
+    console.log('[CanvasWorkspace] handleAnnotationEdit called with:', edit)
+    const currentItems = itemsRef.current
+
+    if (edit.action === 'modify') {
+      const updatedItems = currentItems.map(item => {
+        if (item.id === edit.elementId) {
+          console.log('[CanvasWorkspace] Applying changes to item:', item.type, edit.changes)
+
+          // Handle displaySize changes (applies to any element type)
+          const displaySizeChange = edit.changes.displaySize ? { displaySize: edit.changes.displaySize } : {}
+
+          // Handle chart-specific changes
+          if (item.type === 'chart' && item.content && (item.content as any).vegaSpec) {
+            const newContent = applyChartChanges(item.content, edit.changes)
+            // Also apply displaySize if present
+            const finalContent = { ...newContent, ...displaySizeChange }
+            console.log('[CanvasWorkspace] Updated chart content:', finalContent)
+            return { ...item, content: finalContent }
+          }
+
+          // Handle map-specific displaySize changes
+          if (item.type === 'map' && displaySizeChange.displaySize) {
+            console.log('[CanvasWorkspace] Applying displaySize to map:', displaySizeChange)
+            return {
+              ...item,
+              content: { ...item.content, ...displaySizeChange }
+            }
+          }
+
+          // For other types, just merge the changes
+          return {
+            ...item,
+            content: { ...item.content, ...edit.changes }
+          }
+        }
+        return item
+      })
+      onItemsChange(updatedItems)
+    } else if (edit.action === 'remove') {
+      const updatedItems = currentItems.filter(item => item.id !== edit.elementId)
+      onItemsChange(updatedItems)
+    } else if (edit.action === 'add') {
+      // Create a new element
+      console.log('[CanvasWorkspace] Adding new element:', edit.changes)
+
+      const newElementType = edit.changes.type as CanvasItemType
+      const newContent = edit.changes.content
+
+      if (!newElementType || !newContent) {
+        console.error('[CanvasWorkspace] Invalid add edit - missing type or content')
+        return
+      }
+
+      // Calculate position for new element (place after existing items)
+      const maxY = currentItems.reduce((max, item) => Math.max(max, item.y + item.height), 0)
+
+      // Default sizes based on element type
+      const sizeMap: Record<string, { width: number; height: number }> = {
+        'chart': { width: 400, height: 300 },
+        'kpi-card': { width: 200, height: 150 },
+        'insight-note': { width: 350, height: 200 },
+        'query-result': { width: 500, height: 300 },
+        'map': { width: 500, height: 400 },
+        'code-block': { width: 400, height: 200 }
+      }
+
+      const size = sizeMap[newElementType] || { width: 300, height: 200 }
+
+      const newItem: CanvasItem = {
+        id: edit.elementId,
+        workspaceId: workspaceId || '',
+        type: newElementType,
+        x: 20,  // Left margin
+        y: maxY + 20,  // Below existing items
+        width: size.width,
+        height: size.height,
+        zIndex: currentItems.length + 1,
+        content: newContent,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      console.log('[CanvasWorkspace] Created new item:', newItem)
+      onItemsChange([...currentItems, newItem])
+    }
+  }, [onItemsChange, workspaceId])
+
   const handleAutoArrange = () => {
     if (items.length === 0) return
 
@@ -228,7 +501,7 @@ export function CanvasWorkspace({
 
     items.forEach(item => {
       const isHeader = item.type === 'insight-note' &&
-                      (item.content as any)?.tags?.includes('query-header')
+        (item.content as any)?.tags?.includes('query-header')
 
       if (isHeader && currentGroup.length > 0) {
         groups.push(currentGroup)
@@ -286,7 +559,10 @@ export function CanvasWorkspace({
   }
 
   return (
-    <>
+    <AnnotationProvider
+      workspaceId={workspaceId}
+      onEditReceived={handleAnnotationEdit}
+    >
       {/* Save Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -355,94 +631,219 @@ export function CanvasWorkspace({
         </div>
       )}
 
-      <div className="h-full flex flex-col bg-gray-50">
-      {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-        <h2 className="text-lg font-semibold text-gray-800">Canvas Workspace</h2>
-        <span className="text-sm text-gray-500">
-          {items.length} {items.length === 1 ? 'item' : 'items'}
-        </span>
-        <div className="ml-auto flex gap-2">
-          {items.length > 1 && (
-            <button
-              onClick={handleAutoArrange}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100"
-              title="Auto-arrange all items"
-            >
-              <LayoutGrid className="h-4 w-4" />
-              Auto-Arrange
-            </button>
-          )}
-          {items.length > 0 && (
-            <button
-              onClick={() => {
-                if (confirm('Clear all items from canvas?')) {
-                  onItemsChange([])
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
-            >
-              <Trash2 className="h-4 w-4" />
-              Clear All
-            </button>
-          )}
-          {onLoad && (
-            <button
-              onClick={onLoad}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              <FolderOpen className="h-4 w-4" />
-              Load
-            </button>
-          )}
-          <button
-            onClick={handleSaveClick}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Save className="h-4 w-4" />
-            Save
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-            <Download className="h-4 w-4" />
-            Export
-          </button>
-        </div>
-      </div>
-
-      {/* Canvas */}
-      <div
-        ref={canvasRef}
-        className="flex-1 relative overflow-auto"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px)
-          `,
-          backgroundSize: '20px 20px'
-        }}
-      >
-        {items.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-            <div className="text-center">
-              <Plus className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-              <p className="text-lg font-medium">No items yet</p>
-              <p className="text-sm mt-1">Ask a question in the chat to add items to the canvas</p>
+      <div className="h-full flex flex-col bg-slate-50">
+        {/* Toolbar */}
+        <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3">
+          {/* Editable Title */}
+          {isEditingTitle ? (
+            <div className="flex items-center gap-2">
+              <input
+                ref={titleInputRef}
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                onKeyDown={handleTitleKeyDown}
+                onBlur={handleSaveTitle}
+                className="text-lg font-semibold text-slate-800 bg-slate-100 border border-slate-300 rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[200px]"
+                placeholder="Enter title..."
+              />
+              <button
+                onClick={handleSaveTitle}
+                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                title="Save title"
+              >
+                <Check className="h-4 w-4" />
+              </button>
+              <button
+                onClick={handleCancelEditingTitle}
+                className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Cancel"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
+          ) : (
+            <div className="flex items-center gap-2 group/title">
+              <h2 className="text-lg font-semibold text-slate-800">
+                {title || `${viewMode === 'dashboard' ? 'Dashboard' : 'Canvas'} Workspace`}
+              </h2>
+              {onTitleChange && (
+                <button
+                  onClick={handleStartEditingTitle}
+                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors opacity-0 group-hover/title:opacity-100"
+                  title="Edit title"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
+          <span className="text-sm text-slate-500">
+            {items.length} {items.length === 1 ? 'item' : 'items'}
+          </span>
+
+          {/* View Mode Toggle */}
+          <div className="ml-4 flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('dashboard')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'dashboard'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setViewMode('canvas')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'canvas'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
+            >
+              <Move className="h-4 w-4" />
+              Canvas
+            </button>
+          </div>
+
+          <div className="ml-auto flex gap-2">
+            {viewMode === 'canvas' && items.length > 1 && (
+              <button
+                onClick={handleAutoArrange}
+                className="flex items-center gap-2 px-4 py-2 bg-violet-50 text-violet-600 rounded-lg hover:bg-violet-100 transition-colors"
+                title="Auto-arrange all items"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Auto-Arrange
+              </button>
+            )}
+            {items.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm('Clear all items from canvas?')) {
+                    onItemsChange([])
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear All
+              </button>
+            )}
+            {onLoad && (
+              <button
+                onClick={onLoad}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                <FolderOpen className="h-4 w-4" />
+                Load
+              </button>
+            )}
+            <button
+              onClick={handleSaveClick}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Save className="h-4 w-4" />
+              Save
+            </button>
+            <button
+              onClick={() => setShowExportDialog(true)}
+              disabled={items.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </button>
+            {/* Theme Preset Selector */}
+            <ThemePresetSelector />
+
+            {/* Custom Theme Extractor */}
+            <button
+              onClick={() => setShowThemeExtractor(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+              title="Extract custom theme from image"
+            >
+              <Wand2 className="h-4 w-4" />
+            </button>
+
+            {/* Annotation Mode Toggle */}
+            <AnnotationToggle />
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        {viewMode === 'dashboard' ? (
+          <div ref={exportCanvasRef} data-export-canvas className="flex-1 overflow-hidden">
+            <DashboardGridView
+              items={items}
+              workspaceId={workspaceId}
+              onItemContentChange={handleContentChange}
+              onItemDelete={handleDelete}
+              onItemAdd={handleAnnotationEdit}
+            />
           </div>
         ) : (
-          items.map(item => (
-            <SimpleDraggableItem
-              key={item.id}
-              item={item}
-              onPositionChange={handlePositionChange}
-              onSizeChange={handleSizeChange}
-              onContentChange={handleContentChange}
-              onDelete={handleDelete}
-            />
-          ))
+          /* Canvas View */
+          <div
+            ref={canvasRef}
+            className="flex-1 relative overflow-auto"
+            style={{
+              backgroundImage: `
+              linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px)
+            `,
+              backgroundSize: '20px 20px'
+            }}
+          >
+            {/* Export wrapper - captures this element for export */}
+            <div
+              ref={exportCanvasRef}
+              data-export-canvas
+              className="min-h-full"
+              style={{ backgroundColor: '#f8fafc' }}
+            >
+              {items.length === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center text-slate-500">
+                  <div className="text-center">
+                    <Plus className="h-12 w-12 mx-auto mb-2 text-slate-400" />
+                    <p className="text-lg font-medium">No items yet</p>
+                    <p className="text-sm mt-1">Ask a question in the chat to add items to the canvas</p>
+                  </div>
+                </div>
+              ) : (
+                items.map(item => (
+                  <SimpleDraggableItem
+                    key={item.id}
+                    item={item}
+                    onPositionChange={handlePositionChange}
+                    onSizeChange={handleSizeChange}
+                    onContentChange={handleContentChange}
+                    onDelete={handleDelete}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         )}
       </div>
-    </div>
-    </>
+
+      {/* Export Dialog */}
+      <ExportDialog
+        isOpen={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        canvasElement={exportCanvasRef.current}
+        workspaceName={workspaceName || 'dashboard'}
+      />
+
+      {/* Theme Extractor */}
+      <ThemeExtractor
+        isOpen={showThemeExtractor}
+        onClose={() => setShowThemeExtractor(false)}
+        workspaceId={workspaceId}
+      />
+
+      {/* Annotation Overlay (highlight + popover) */}
+      <AnnotationOverlay />
+    </AnnotationProvider>
   )
 }

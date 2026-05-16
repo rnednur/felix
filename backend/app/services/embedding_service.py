@@ -3,11 +3,24 @@ from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Any
 
 
+# Global cache for the embedding model (singleton pattern)
+_cached_model = None
+
+
+def get_embedding_model() -> SentenceTransformer:
+    """Get or create the cached embedding model (singleton)"""
+    global _cached_model
+    if _cached_model is None:
+        _cached_model = SentenceTransformer('all-MiniLM-L6-v2')  # 384 dimensions
+    return _cached_model
+
+
 class EmbeddingService:
     """Generate and manage embeddings for column matching"""
 
     def __init__(self):
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')  # 384 dimensions
+        # Use cached model instead of loading a new one each time
+        self.model = get_embedding_model()
 
     def generate_column_embeddings(self, columns: List[Dict[str, Any]]) -> np.ndarray:
         """Generate embeddings for column descriptions"""

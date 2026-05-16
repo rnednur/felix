@@ -1,5 +1,14 @@
 // Canvas item types for Felix
 
+/**
+ * Display size for dashboard grid items
+ * - small: 1 column (compact view)
+ * - medium: 1 column on mobile, flexible on desktop (default)
+ * - large: 2 columns on desktop
+ * - full: full width (all columns)
+ */
+export type DisplaySize = 'small' | 'medium' | 'large' | 'full'
+
 export interface CanvasItemPosition {
   x: number
   y: number
@@ -21,6 +30,8 @@ export interface ChartContent {
   vegaSpec: any
   title?: string
   sourceQueryId?: string
+  data?: any[]
+  displaySize?: DisplaySize
 }
 
 export interface InsightNoteContent {
@@ -44,12 +55,42 @@ export interface MLModelContent {
   predictions?: any[]
 }
 
+export interface KPICardContent {
+  id: string
+  name: string
+  value: string | number
+  formattedValue: string
+  trend?: number
+  trendDirection?: 'up' | 'down' | 'flat'
+  comparisonLabel?: string
+  column?: string
+  aggregation?: string
+  sparklineData?: number[]
+}
+
+export interface MapContent {
+  title?: string
+  data: any[]
+  spatialColumns: {
+    lat: string
+    lng: string
+  }
+  config?: any  // Kepler.gl config
+  sourceQueryId?: string
+  datasetId?: string
+  // For export - captured static image
+  staticImageUrl?: string
+  displaySize?: DisplaySize
+}
+
 export type CanvasItemContent =
   | QueryResultContent
   | ChartContent
   | InsightNoteContent
   | CodeBlockContent
   | MLModelContent
+  | KPICardContent
+  | MapContent
 
 export type CanvasItemType =
   | 'query-result'
@@ -57,6 +98,8 @@ export type CanvasItemType =
   | 'insight-note'
   | 'code-block'
   | 'ml-model'
+  | 'kpi-card'
+  | 'map'
 
 export interface CanvasItem {
   id: string

@@ -1,9 +1,145 @@
-/* Import Design Tokens */
+/*
+ * Global Styles
+ * This file imports design tokens and sets up Tailwind layers
+ */
+
+/* Import Design Tokens (must come before Tailwind) */
 @import './styles/design-tokens.css';
 
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+/* Import Google Fonts - Optimized loading */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
+/* Tailwind Layers */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Component Layer - Reusable component styles
+ * Use these for consistent component styling across the app
+ */
+@layer components {
+  /* Button base styles */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2;
+    @apply font-medium text-sm;
+    @apply rounded-md px-4 py-2;
+    @apply transition-all duration-150 ease-out;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn;
+    @apply bg-primary text-primary-foreground;
+    @apply hover:bg-primary-hover active:bg-primary-active;
+    @apply shadow-sm hover:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply btn;
+    @apply bg-secondary text-secondary-foreground;
+    @apply hover:bg-secondary-hover active:bg-secondary-active;
+    @apply border border-border;
+  }
+
+  .btn-ghost {
+    @apply btn;
+    @apply bg-transparent text-foreground;
+    @apply hover:bg-muted active:bg-muted/80;
+  }
+
+  .btn-destructive {
+    @apply btn;
+    @apply bg-destructive text-destructive-foreground;
+    @apply hover:bg-destructive-hover;
+  }
+
+  /* Input base styles */
+  .input {
+    @apply w-full rounded-md border border-input bg-card px-3 py-2;
+    @apply text-sm text-foreground placeholder:text-muted-foreground;
+    @apply transition-colors duration-150;
+    @apply focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Card component */
+  .card {
+    @apply rounded-lg border border-border bg-card;
+    @apply shadow-elevation-1;
+    @apply transition-shadow duration-200;
+  }
+
+  .card-hover {
+    @apply card;
+    @apply hover:shadow-elevation-2 hover:border-border-strong;
+  }
+
+  .card-interactive {
+    @apply card-hover;
+    @apply cursor-pointer;
+    @apply active:shadow-elevation-1;
+  }
+
+  /* Badge component */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5;
+    @apply text-xs font-medium;
+    @apply transition-colors duration-150;
+  }
+
+  .badge-default {
+    @apply badge;
+    @apply bg-primary-muted text-primary;
+  }
+
+  .badge-success {
+    @apply badge;
+    @apply bg-success-muted text-success;
+  }
+
+  .badge-warning {
+    @apply badge;
+    @apply bg-warning-muted text-warning;
+  }
+
+  .badge-destructive {
+    @apply badge;
+    @apply bg-destructive-muted text-destructive;
+  }
+
+  /* Label */
+  .label {
+    @apply text-sm font-medium text-foreground;
+    @apply leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+
+  /* Helper text */
+  .helper-text {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .error-text {
+    @apply text-sm text-destructive;
+  }
+
+  /* Section container */
+  .section {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Page container */
+  .page {
+    @apply min-h-screen bg-background;
+  }
+
+  /* Divider */
+  .divider {
+    @apply h-px w-full bg-border;
+  }
+
+  .divider-vertical {
+    @apply w-px h-full bg-border;
+  }
+}

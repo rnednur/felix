@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { X, CheckCircle2, AlertCircle, Info, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export interface Toast {
   id: string
@@ -70,7 +71,7 @@ export function useToast() {
 
 function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: string) => void }) {
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-md">
+    <div className="fixed top-4 right-4 z-toast flex flex-col gap-3 max-w-md">
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
@@ -80,39 +81,40 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
   const icons = {
-    success: <CheckCircle2 className="w-5 h-5 text-green-600" />,
-    error: <AlertCircle className="w-5 h-5 text-red-600" />,
-    info: <Info className="w-5 h-5 text-blue-600" />,
-    loading: <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+    success: <CheckCircle2 className="w-5 h-5 text-success" />,
+    error: <AlertCircle className="w-5 h-5 text-destructive" />,
+    info: <Info className="w-5 h-5 text-info" />,
+    loading: <Loader2 className="w-5 h-5 text-primary animate-spin" />
   }
 
   const backgrounds = {
-    success: 'bg-green-50 border-green-200',
-    error: 'bg-red-50 border-red-200',
-    info: 'bg-blue-50 border-blue-200',
-    loading: 'bg-blue-50 border-blue-200'
+    success: 'bg-success-muted border-success/20',
+    error: 'bg-destructive-muted border-destructive/20',
+    info: 'bg-info-muted border-info/20',
+    loading: 'bg-primary-muted border-primary/20'
   }
 
   const type = toast.type || 'info'
 
   return (
     <div
-      className={`
-        ${backgrounds[type]}
-        border rounded-lg shadow-lg p-4 flex items-start gap-3
-        animate-in slide-in-from-right-full duration-300
-      `}
+      className={cn(
+        backgrounds[type],
+        'border rounded-lg shadow-elevation-3 p-4',
+        'flex items-start gap-3',
+        'animate-slide-in-right'
+      )}
     >
       <div className="flex-shrink-0 mt-0.5">{icons[type]}</div>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900">{toast.title}</p>
+        <p className="font-medium text-foreground">{toast.title}</p>
         {toast.description && (
-          <p className="text-sm text-gray-600 mt-1">{toast.description}</p>
+          <p className="text-sm text-muted-foreground mt-1">{toast.description}</p>
         )}
         {toast.action && (
           <button
             onClick={toast.action.onClick}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 mt-2"
+            className="text-sm font-medium text-primary hover:text-primary-hover mt-2 transition-colors"
           >
             {toast.action.label}
           </button>
@@ -121,7 +123,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
       {type !== 'loading' && (
         <button
           onClick={() => onRemove(toast.id)}
-          className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+          className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
         >
           <X className="w-4 h-4" />
         </button>

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { cn } from "@/lib/utils"
 
 interface TabsContextValue {
   value: string
@@ -44,7 +45,11 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={`inline-flex h-10 items-center justify-center rounded-md bg-gray-100 p-1 ${className || ''}`}
+    className={cn(
+      "inline-flex h-10 items-center justify-center gap-1",
+      "rounded-lg bg-muted p-1",
+      className
+    )}
     {...props}
   />
 ))
@@ -63,9 +68,18 @@ const TabsTrigger = React.forwardRef<
     <button
       ref={ref}
       onClick={() => context.onValueChange(value)}
-      className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 ${
-        isActive ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-      } ${className || ''}`}
+      className={cn(
+        "inline-flex items-center justify-center whitespace-nowrap",
+        "rounded-md px-3 py-1.5",
+        "text-sm font-medium",
+        "transition-all duration-150",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "disabled:pointer-events-none disabled:opacity-50",
+        isActive
+          ? "bg-card text-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground hover:bg-card/50",
+        className
+      )}
       {...props}
     />
   )
@@ -82,7 +96,11 @@ const TabsContent = React.forwardRef<
   if (context.value !== value) return null
 
   return (
-    <div ref={ref} className={className} {...props}>
+    <div
+      ref={ref}
+      className={cn("mt-2 animate-fade-in", className)}
+      {...props}
+    >
       {children}
     </div>
   )

@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ToastProvider } from './components/ui/toast'
 import { AuthProvider } from './contexts/AuthContext'
+import { FilterProvider } from './contexts/FilterContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import Home from './pages/Home'
 import DatasetDetail from './pages/DatasetDetail'
@@ -14,6 +16,8 @@ function App() {
     <ToastProvider>
       <BrowserRouter>
         <AuthProvider>
+          <FilterProvider>
+            <ThemeProvider>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
@@ -46,6 +50,8 @@ function App() {
               </ProtectedRoute>
             } />
           </Routes>
+            </ThemeProvider>
+          </FilterProvider>
         </AuthProvider>
       </BrowserRouter>
     </ToastProvider>

@@ -7,12 +7,18 @@ from app.core.security import (
     authenticate_user,
     create_access_token,
     create_refresh_token,
+    create_password_reset_token,
+    verify_password_reset_token,
+    verify_password,
     decode_token,
     get_current_user
 )
 from app.models.user import User, UserRole
 from app.models.audit import AuditLog
-from app.schemas.user import UserCreate, UserResponse, Token, LoginRequest, RefreshTokenRequest
+from app.schemas.user import (
+    UserCreate, UserResponse, Token, LoginRequest, RefreshTokenRequest,
+    ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
+)
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -175,3 +181,129 @@ def logout(current_user: User = Depends(get_current_user), db: Session = Depends
     db.commit()
 
     return {"message": "Successfully logged out"}
+
+
+@router.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Request a password reset.
+    In production, this would send an email with the reset link.
+    For development, it returns the token directly.
+    """
+    user = db.query(User).filter(
+        User.email == request.email,
+        User.deleted_at.is_(None)
+    ).first()
+
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"message": "If an account exists with this email, a password reset link has been sent."}
+
+    if not user.is_active:
+        return {"message": "If an account exists with this email, a password reset link has been sent."}
+
+    # Create password reset token
+    reset_token = create_password_reset_token(user.id)
+
+    # Log password reset request
+    audit_log = AuditLog(
+        user_id=user.id,
+        action="password_reset_requested",
+        resource_type="user",
+        resource_id=user.id
+    )
+    db.add(audit_log)
+    db.commit()
+
+    # In production: Send email with reset link
+    # For development: Return the token (remove in production!)
+    return {
+        "message": "If an account exists with this email, a password reset link has been sent.",
+        "reset_token": reset_token  # Remove this in production!
+    }
+
+
+@router.post("/reset-password")
+def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset password using a valid reset token"""
+    # Verify the token
+    user_id = verify_password_reset_token(request.token)
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+
+    # Find the user
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.deleted_at.is_(None)
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User not found"
+        )
+
+    # Validate new password (minimum 8 characters)
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long"
+        )
+
+    # Update password
+    user.hashed_password = get_password_hash(request.new_password)
+    db.commit()
+
+    # Log password reset
+    audit_log = AuditLog(
+        user_id=user.id,
+        action="password_reset_completed",
+        resource_type="user",
+        resource_id=user.id
+    )
+    db.add(audit_log)
+    db.commit()
+
+    return {"message": "Password has been reset successfully"}
+
+
+@router.post("/change-password")
+def change_password(
+    request: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Change password for authenticated user"""
+    # Verify current password
+    if not verify_password(request.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+
+    # Validate new password
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters long"
+        )
+
+    # Update password
+    current_user.hashed_password = get_password_hash(request.new_password)
+    db.commit()
+
+    # Log password change
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        action="password_changed",
+        resource_type="user",
+        resource_id=current_user.id
+    )
+    db.add(audit_log)
+    db.commit()
+
+    return {"message": "Password changed successfully"}
